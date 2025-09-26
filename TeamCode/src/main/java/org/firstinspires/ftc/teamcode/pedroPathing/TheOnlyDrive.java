@@ -13,6 +13,7 @@ public class TheOnlyDrive extends LinearOpMode {
     private DcMotor rightBack;
     private DcMotor leftFront;
     private DcMotor leftBack;
+    private DcMotor intakeMotor;
     double leftFrontPower;
     double rightFrontPower;
     double rightBackPower;
@@ -33,6 +34,11 @@ public class TheOnlyDrive extends LinearOpMode {
             while (opModeIsActive()) {
                 // OpMode loop
                 movementLogic(runtime, axial, lateral, yaw, max);
+                if(gamepad1.left_bumper){
+                    intakeMotor.setPower(1);
+                }else{
+                    intakeMotor.setPower(0);
+                }
             }
         }
     }
@@ -41,6 +47,7 @@ public class TheOnlyDrive extends LinearOpMode {
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         rightBack = hardwareMap.get(DcMotor.class, "rightBack");
+        intakeMotor = hardwareMap.get(DcMotor.class, "intakeSystem");
         leftBack.setDirection(DcMotor.Direction.REVERSE);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBack.setDirection(DcMotor.Direction.FORWARD);
