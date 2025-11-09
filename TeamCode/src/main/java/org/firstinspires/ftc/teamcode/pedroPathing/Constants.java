@@ -19,12 +19,12 @@ public class Constants {
             .forwardTicksToInches(0.001989436789)
             .strafeTicksToInches(0.001989436789)
             .turnTicksToInches(0.001989436789)
-            .leftPodY(0)
-            .rightPodY(0)
-            .strafePodX(0)
-            .leftEncoder_HardwareMapName("0")
-            .rightEncoder_HardwareMapName("0")
-            .strafeEncoder_HardwareMapName("0")
+            .leftPodY(6.25)
+            .rightPodY(-6.25)
+            .strafePodX(-6.4375)
+            .leftEncoder_HardwareMapName("leftyimu")
+            .rightEncoder_HardwareMapName("rightyimu")
+            .strafeEncoder_HardwareMapName("middleximu")
             .leftEncoderDirection(Encoder.REVERSE)
             .rightEncoderDirection(Encoder.REVERSE)
             .strafeEncoderDirection(Encoder.FORWARD);
@@ -44,6 +44,7 @@ public class Constants {
         return new FollowerBuilder(followerConstants, hardwareMap)
                 .pathConstraints(pathConstraints)
                 .mecanumDrivetrain(driveConstants)
+                .threeWheelLocalizer(localizerConstants)
                 .build();
     }
 }
