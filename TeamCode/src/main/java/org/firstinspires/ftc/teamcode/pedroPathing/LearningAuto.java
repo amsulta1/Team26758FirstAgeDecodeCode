@@ -10,8 +10,8 @@ import com.qualcomm.robotcore.eventloop.opmode.*;
 @Autonomous(name = "TestingAuto123")
 public class LearningAuto extends LinearOpMode {
     private Follower follower;
-    private final Pose startPose = new Pose(96, 8, Math.toRadians(90));
-    private final Pose endPose = new Pose(96, 136, Math.toRadians(180));
+    private final Pose startPose = new Pose(87, 8.25, Math.toRadians(270));
+    private final Pose endPose = new Pose(87.5, 20, Math.toRadians(245));
     Path fullAutoPath;
     public void buildPaths(){
         fullAutoPath = new Path(new BezierLine(startPose, endPose));
@@ -28,6 +28,7 @@ public class LearningAuto extends LinearOpMode {
             follower.followPath(fullAutoPath);
             while (opModeIsActive()) {
                 // OpMode loop
+                if(!follower.isBusy()){requestOpModeStop();}
             }
         }
     }

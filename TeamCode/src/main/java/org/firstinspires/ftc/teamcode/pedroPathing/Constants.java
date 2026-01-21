@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
@@ -13,19 +14,22 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 public class Constants {
     //TODO: Set mass of robot
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .mass(0);
+            .mass(6.80)
+            .forwardZeroPowerAcceleration(-34.86982212235985)
+            .lateralZeroPowerAcceleration(-48.0917597945857);
+
     //TODO: Set offset of odometry pods in POD(x/y) and hardware map names + encoder directions if needed
     public static ThreeWheelConstants localizerConstants = new ThreeWheelConstants()
-            .forwardTicksToInches(0.001989436789)
-            .strafeTicksToInches(0.001989436789)
-            .turnTicksToInches(0.001989436789)
+            .forwardTicksToInches(0.0030155604382137973)
+            .strafeTicksToInches(0.0030187143237504835)
+            .turnTicksToInches(-0.0029334360327087825)
             .leftPodY(6.25)
             .rightPodY(-6.25)
             .strafePodX(-6.4375)
-            .leftEncoder_HardwareMapName("leftyimu")
-            .rightEncoder_HardwareMapName("rightyimu")
-            .strafeEncoder_HardwareMapName("middleximu")
-            .leftEncoderDirection(Encoder.REVERSE)
+            .leftEncoder_HardwareMapName("rightFront")
+            .rightEncoder_HardwareMapName("leftFront")
+            .strafeEncoder_HardwareMapName("rightBack")
+            .leftEncoderDirection(Encoder.FORWARD)
             .rightEncoderDirection(Encoder.REVERSE)
             .strafeEncoderDirection(Encoder.FORWARD);
     public static MecanumConstants driveConstants = new MecanumConstants()
@@ -37,7 +41,9 @@ public class Constants {
             .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD);
+            .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .xVelocity(64.62606674453679)
+            .yVelocity(52.04324042497011);
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
 
     public static Follower createFollower(HardwareMap hardwareMap) {

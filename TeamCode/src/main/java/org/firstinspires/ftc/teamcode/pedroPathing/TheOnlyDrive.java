@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
+import com.pedropathing.control.PIDFController;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -18,26 +19,35 @@ import org.firstinspires.ftc.robotcore.external.JavaUtil;
 @TeleOp(name = "TheOnlyDriveNew")
 public class TheOnlyDrive extends LinearOpMode {
     private DcMotor rightFront;
+    //take in 0.82  hold .67    shoot 0.3
     private DcMotor rightBack;
+    private boolean shotMotorOn = false;
     private Follower follower;
     private DcMotorEx shooterMotor;
     private DcMotor leftFront;
-    private float DPadNumber = 0f;
+    boolean automaticShotVelocityCalcultation = true;
+    private float DPadNumber = 0.55f;
+    private float shotVelocity = 2000;
+    float closeShot = 1110;
+    float farShot = 1500;
     private Servo intakeServo;
+    private Servo intakeServo2;
     private DcMotor leftBack;
-    float intakePower = 1;
-    Timer shotTimer = new Timer();
+    float intakePower = 0.8f;
+    private ElapsedTime servoTimer = new ElapsedTime();
     enum IntakeServoPos{
         Standby,
         Holding,
-        SendToShooting
+        SendToShooting1, //.22
+        SendToShooting2, //.46
+        SendToShooting3
     }
     IntakeServoPos currentServoState = IntakeServoPos.Standby;
     private DcMotor intakeMotor;
     TelemetryManager telemetryM;
-    private final Pose autoEndPose = new Pose(39, 33, Math.toRadians(90));
+    private final Pose autoEndPose = new Pose(72, 8.25, Math.toRadians(90));
     boolean scoringInBlueGoal = true;
-    int whichMotorIsDPad = 0;
+    int whichMotorIsDPad = 4;
     //leftyimu
     //middleximu
     //rightyimu
@@ -45,16 +55,14 @@ public class TheOnlyDrive extends LinearOpMode {
     @Override
     public void runOpMode() {
         ElapsedTime runtime;
-        float axial = 0;
-        float lateral = 0;
         //1 ball .2491
         //2 ball .4493
         //3 ball .5495
         //send to shot .2991
-        float yaw = 0;
         double max = 0;
         runtime = new ElapsedTime();
         initializationLogic();
+        shooterMotor.setVelocityPIDFCoefficients(10.0f, 0.3549f, 96.1f, 10.0f);
         FollowerInit();
         waitForStart();
         runtime.reset();
@@ -65,11 +73,12 @@ public class TheOnlyDrive extends LinearOpMode {
                 // OpMode loop
                 follower.update();
                 telemetryM.update();
-                movementLogic(runtime, axial, lateral, yaw, max);
+                movementLogic();
                 DPadNumberManagement();
                 IntakeMotorManagement();
-                if(gamepad1.a){scoringInBlueGoal = !scoringInBlueGoal;}
                 ServoManagement();
+                ResetFollower();
+                shotMotorManagement();
                 //make a shot, servo sending balls to shot system
 
                 telemetryData();
@@ -79,26 +88,19 @@ public class TheOnlyDrive extends LinearOpMode {
     public void telemetryData(){
         telemetry.addData("Intake Motor Position: ", intakeServo.getPosition());
         telemetry.addData("D-Pad Number: ", DPadNumber);
-        telemetry.addLine("0 = Intake Servo, 1 = Intake Motor, 2 = Shot Motor");
+        telemetry.addData("Which Motor: ", whichMotorIsDPad);
+        telemetry.addLine("0 = Intake Servo, 1 = Intake Motor, 2 = Shot Motor, 3 = Intake Servo 2");
         telemetry.addData("X: ", follower.getPose().getX());
         telemetry.addData("Y: ", follower.getPose().getY());
         telemetry.addData("Heading: ", follower.getPose().getHeading());
         telemetry.addData("Scoring In Blue Goal: ", scoringInBlueGoal);
-        telemetry.update();
-    }
-    public VoltageSensor getBatteryVoltage() {
-        double maxVoltage = 0;
-        VoltageSensor finalVolter = null;
-        // Iterate over all VoltageSensors available in the hardware map
-        for (VoltageSensor sensor : hardwareMap.voltageSensor) {
-            double voltage = sensor.getVoltage();
-            if (voltage > maxVoltage) {
-                maxVoltage = voltage;
-                finalVolter = sensor;
-            }
+        telemetry.addData("Shot Motor VS: ", shooterMotor.getVelocity());
+        if(automaticShotVelocityCalcultation){
+            telemetry.addData("Calculating Shot Velocity at ", shotVelocity);
+        }else{
+            telemetry.addLine("Manual Shot Velocity of 1000");
         }
-
-        return finalVolter;
+        telemetry.update();
     }
     private void FollowerInit(){
         follower = Constants.createFollower(hardwareMap);
@@ -106,42 +108,188 @@ public class TheOnlyDrive extends LinearOpMode {
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
     }
-    private void ServoManagement(){
-        if(gamepad2.x){
-            currentServoState = IntakeServoPos.SendToShooting;
-            shotTimer.resetTimer();
-            int waitTime = 1500;
-            float intakeFinalPos = 0.25f;
-            calculateAndSetShooterVelocity(follower.getPose(), shooterMotor, getBatteryVoltage(), scoringInBlueGoal);
-            while(shotTimer.getElapsedTime() < waitTime){
-                if(gamepad2.left_trigger>0){
-                    currentServoState = IntakeServoPos.Holding;
-                    waitTime = 0;
-                    intakeFinalPos = 0.5495f;
+    private void ResetFollower(){
+        if(gamepad1.right_bumper){
+            follower = Constants.createFollower(hardwareMap);
+            follower.setStartingPose(new Pose(64, 8.5, Math.toRadians(0)));
+            follower.update();
+        }
+    }
+    private void ServoState(boolean IfFalseClosed){
+        if(!IfFalseClosed){
+            //closed
+            intakeServo2.setPosition(0.12f);
+            servoTimer.reset();
+            while(servoTimer.milliseconds() < 150){movementLogic();}
+            intakeServo.setPosition(0.59f);
+            //closed
+            //intake 2 servo 0.66
+            //intake servo 0.82
+        }else{
+            //open
+            boolean openingManuever =false;
+            if(intakeServo2.getPosition()> 0.35f){
+                openingManuever = true;
+                intakeServo.setPosition(0.69f);
+                servoTimer.reset();
+                while (servoTimer.milliseconds() < 100){
+                    movementLogic();
+                    shotMotorManagement();
+                    IntakeMotorManagement();
                 }
             }
-            intakeServo.setPosition(intakeFinalPos);
+            intakeServo2.setPosition(0.01f);
+            if(openingManuever){
+                while (servoTimer.milliseconds() < 550){
+                    movementLogic();
+                    shotMotorManagement();
+                    IntakeMotorManagement();
+                }
+            }
+            intakeServo.setPosition(0.75f);
+            //intake 2 servo 0.48
+            //intake servo 1
         }
+    }
+    private void ServoManagement(){
+
+        //holdin main: .91 second .13     second first, main afterward
+        //shooting 3  main .82, it should be holding first though.
+        //shooting 2  main 0.6 it should be from shooting 3.
+        //shooting 1 main .52 secondary .62 from shooting 2 both of them together.
+        if(gamepad2.a){
+            servoTimer.reset();
+            if(currentServoState == IntakeServoPos.SendToShooting3){
+                //shooting with 2 balls
+                currentServoState = IntakeServoPos.SendToShooting2;
+                intakeServo2.setPosition(0.39f);
+            }else if(currentServoState == IntakeServoPos.SendToShooting2){
+                //shooting the last ball
+                currentServoState = IntakeServoPos.SendToShooting1;
+                intakeServo2.setPosition(0.59f);
+            }else{
+                currentServoState = IntakeServoPos.SendToShooting3;
+                intakeServo2.setPosition(0.2f);
+                servoTimer.reset();
+                while (servoTimer.milliseconds() < 250){
+                    movementLogic();
+                    shotMotorManagement();
+                    IntakeMotorManagement();
+                }
+                intakeServo.setPosition(0.69f);
+            }
+            /*if(currentServoState == IntakeServoPos.SendToShooting1){
+                currentServoState = IntakeServoPos.SendToShooting2;
+                intakeServo2.setPosition(0.60f);
+                servoTimer.reset();
+                while(servoTimer.milliseconds() < 300){
+                    movementLogic();
+                }
+                intakeServo.setPosition(0.7f);
+                //there are 2 balls
+            }else if(currentServoState == IntakeServoPos.SendToShooting2){
+                currentServoState = IntakeServoPos.SendToShooting1;
+                //there is oneball
+                servoTimer.reset();
+                intakeServo2.setPosition(0.60f);
+                while(servoTimer.milliseconds() < 300){
+                    movementLogic();
+                }
+                servoTimer.reset();
+                intakeServo.setPosition(0.67f);
+                while(servoTimer.milliseconds() < 300){
+                    movementLogic();
+                }
+                intakeServo2.setPosition(1f);
+
+            } else{
+                servoTimer.reset();
+                currentServoState = IntakeServoPos.SendToShooting2;
+                intakeServo2.setPosition(0.60f);
+                while(servoTimer.milliseconds() < 300){
+                    movementLogic();
+                }
+                intakeServo.setPosition(0.7f);
+            }*/
+            servoTimer.reset();
+            sleep(100);
+        }
+
         if(gamepad2.b){
+            gamepad2.setLedColor(0, 265, 3, 5000);
+            gamepad2.rumble(2000);
             if(currentServoState == IntakeServoPos.Holding){
-                intakeServo.setPosition(0.8);
                 currentServoState = IntakeServoPos.Standby;
+                ServoState(true);
                 //take in 1
             }else if(currentServoState == IntakeServoPos.Standby){
-                intakeServo.setPosition(0.5495f);
                 currentServoState = IntakeServoPos.Holding;
-            }else if(currentServoState == IntakeServoPos.SendToShooting){
+                ServoState(false);
+            }else {
                 currentServoState = IntakeServoPos.Standby;
-                intakeServo.setPosition(0.8);
+                ServoState(true);
             }
+            sleep(150);
+        }
+    }
+    private void shotMotorManagement(){
+        if(gamepad2.left_trigger > 0){
+            ServoState(true);
+            currentServoState = IntakeServoPos.Standby;
+            shotMotorOn = false;
+        }
+
+        if(gamepad2.left_bumper){
+            gamepad2.setLedColor(265, 10, 12, 5000);
+            intakeSpinning = false;
+            shotVelocity = closeShot;
+            intakeMotor.setPower(0);
+            shotMotorOn = true;
+            /*if(whichMotorIsDPad == 2) {
+                gamepad2.rumble(1000);
+                shooterMotor.setPower(DPadNumber);
+            }else{
+                shooterMotor.setPower(goodVoltageNumberFinder(-0.48f, 12.3f));
+            }*/
+        }
+        if(gamepad2.right_bumper){
+            gamepad2.setLedColor(265, 10, 12, 5000);
+            intakeSpinning = false;
+            intakeMotor.setPower(0);
+            shotVelocity = farShot;
+            shotMotorOn = true;
+            /*if(whichMotorIsDPad == 2) {
+                gamepad2.rumble(1000);
+                shooterMotor.setPower(DPadNumber);
+            }else{
+                shooterMotor.setPower(goodVoltageNumberFinder(-0.48f, 12.3f));
+            }*/
+        }
+        if(shotMotorOn){
+            shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+            shooterMotor.setVelocity(shotVelocity);
+        }else{
+            while(shooterMotor.getVelocity() > 100){
+                shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+                shooterMotor.setVelocity(-shooterMotor.getVelocity()/2f);
+                movementLogic();
+                DPadNumberManagement();
+                IntakeMotorManagement();
+                if(gamepad2.left_bumper){
+                    break;
+                }
+            }
+            shooterMotor.setVelocity(0);
         }
     }
     private void DPadNumberManagement(){
         DPadNumChanging();
-        if(gamepad2.y){
-            if(whichMotorIsDPad == 2){whichMotorIsDPad = -1;}
+        if(gamepad1.y){
+            if(whichMotorIsDPad >= 3){whichMotorIsDPad = -1;}
             whichMotorIsDPad++;
+            sleep(200);
         }
+        if(gamepad1.x){whichMotorIsDPad = 4;}
         switch (whichMotorIsDPad){
             case 0:
                 intakeServo.setPosition(DPadNumber);
@@ -150,47 +298,60 @@ public class TheOnlyDrive extends LinearOpMode {
                 intakePower = DPadNumber;
                 break;
             case 2:
-                shooterMotor.setPower(DPadNumber);
+                shotVelocity = DPadNumber;
+                //shooterMotor.setPower(DPadNumber);
                 break;
+            case 3:
+                intakeServo2.setPosition(DPadNumber);
             default:
-                whichMotorIsDPad = 0;
                 break;
         }
     }
     private void IntakeMotorManagement(){
         //switch intake motor directinos
-        if(gamepad2.a){
-            if( intakePower == 0.5 ){ intakePower = -0.5f; }
-            else{ intakePower = 0.5f; }
+        if(gamepad2.x){
+            if( intakePower == 0.55f ){ intakePower = -0.55f; }
+            else{ intakePower = 0.55f; }
         }
         //intake motor on and off
-        if(intakeSpinning) {intakeMotor.setPower(intakePower);}
+        if(intakeSpinning) {
+            shotMotorOn = false;
+            intakeMotor.setPower(intakePower);
+        }
         else{intakeMotor.setPower(0);}
         if(gamepad2.right_trigger > 0){intakeSpinning = true;}
         else{intakeSpinning = false;}
     }
     private void DPadNumChanging(){
+        float multiplier = 1f;
+        if(whichMotorIsDPad == 2){
+            multiplier = 1f;
+        }
         if(gamepad2.dpad_up){
-            DPadNumber += 0.1f;
+            DPadNumber += (0.1f * multiplier);
+            sleep(200);
         }
         if(gamepad2.dpad_down){
-            DPadNumber -= 0.1f;
+            DPadNumber -= (0.1f * multiplier);
+            sleep(200);
         }
         if(gamepad2.dpad_right){
-            DPadNumber += 0.01f;
+            DPadNumber += (0.01f * multiplier);
+            sleep(200);
         }
         if(gamepad2.dpad_left){
-            DPadNumber -= 0.01f;
+            DPadNumber -= (0.01f * multiplier);
+            sleep(200);
         }
     }
     /**
      * Calculates the target RPM based on physics and energy compensation,
      * then sets the motor's velocity using PIDF with dynamic voltage compensation.
      * * @param currentPose The robot's current position (X, Y) from Pedro Pathing (in inches).
-     * @param shooterMotor The DcMotorEx object for your shooter motor.
-     * @param voltageSensor The robot's active VoltageSensor.
+     * //@param shooterMotor The DcMotorEx object for your shooter motor.
+     * //@param voltageSensor The robot's active VoltageSensor.
      */
-    public void calculateAndSetShooterVelocity(
+    /*public void calculateAndSetShooterVelocity(
             Pose currentPose,
             DcMotorEx shooterMotor,
             VoltageSensor voltageSensor,
@@ -211,12 +372,12 @@ public class TheOnlyDrive extends LinearOpMode {
         final double GEAR_RATIO = 1.0;       // Motor shaft rotations per flywheel rotation (e.g., 1.0 for 1:1)
 
         // Physics and Field Constants (Use METERS for physics calculations)
-        final double TARGET_X = (BlueGoal) ? 12 : 130;              // Target's X field coordinate (meters)
+        final double TARGET_X = (BlueGoal) ? (12*0.0254) : (130*0.0254);  // Target's X field coordinate (meters)
         final double TARGET_Y = 135;              // Target's Y field coordinate (meters)
 
         final double TARGET_HEIGHT = 1.143;         // Target height above floor (meters)
-        final double LAUNCH_HEIGHT = 0.15;        // Artifact exit height above floor (meters)
-        final double RAMP_ANGLE_RAD = Math.toRadians(30.0); // Angle of your shot ramp (radians)
+        final double LAUNCH_HEIGHT = 0.23;        // Artifact exit height above floor (meters)
+        final double RAMP_ANGLE_RAD = Math.toRadians(60.0); // Angle of your shot ramp (radians)
         final double FLYWHEEL_RADIUS_M = 0.05;    // Radius of the flywheel (meters)
         final double GRAVITY = 9.81;              // m/s^2
         final double INCHES_TO_METERS = 0.0254;
@@ -284,6 +445,7 @@ public class TheOnlyDrive extends LinearOpMode {
         // Set the Target Velocity (The SDK's internal PID controller takes over)
         shooterMotor.setVelocity(targetVelocityTps);
     }
+    */
     public void initializationLogic(){
         leftFront = hardwareMap.get(DcMotor.class, "leftFront");
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
@@ -292,8 +454,11 @@ public class TheOnlyDrive extends LinearOpMode {
         intakeMotor = hardwareMap.get(DcMotor.class, "intakeSystem");
         intakeServo = hardwareMap.get(Servo.class, "PBTSS");
         shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
+        intakeServo2 = hardwareMap.get(Servo.class, "PBTSS2");
+        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         leftBack.setDirection(DcMotor.Direction.REVERSE);
-        shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBack.setDirection(DcMotor.Direction.FORWARD);
         rightBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -302,25 +467,25 @@ public class TheOnlyDrive extends LinearOpMode {
         leftFront.setDirection(DcMotor.Direction.REVERSE);
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
-    public void movementLogic(ElapsedTime runtime, float axial, float lateral, float yaw, double max){
-        axial = -gamepad1.left_stick_y;
-        lateral = gamepad1.left_stick_x;
-        yaw = gamepad1.right_stick_x;
+    public void movementLogic(){
+        float axial = -gamepad1.left_stick_y;
+        float lateral = gamepad1.left_stick_x;
+        float yaw = gamepad1.right_stick_x;
         if(gamepad1.right_trigger>0){
             axial = axial / 3;
             lateral = lateral / 3;
             yaw = yaw / 3;
         }
-        follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
+        //follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
         // Combine the joystick requests for each axis-motion to determine each wheel's power.
         // Set up a variable for each drive wheel to save the power level for telemetry.
-        /*leftFrontPower = axial + lateral + yaw;
-        rightFrontPower = (axial - lateral) - yaw;
-        leftBackPower = (axial - lateral) + yaw;
-        rightBackPower = (axial + lateral) - yaw;
+        double leftFrontPower = axial + lateral + yaw;
+        double rightFrontPower = (axial - lateral) - yaw;
+        double leftBackPower = (axial - lateral) + yaw;
+        double rightBackPower = (axial + lateral) - yaw;
         // Normalize the values so no wheel power exceeds 100%
         // This ensures that the robot maintains the desired motion.
-        max = JavaUtil.maxOfList(JavaUtil.createListWith(Math.abs(leftFrontPower), Math.abs(rightFrontPower), Math.abs(leftBackPower), Math.abs(rightBackPower)));
+        double max = JavaUtil.maxOfList(JavaUtil.createListWith(Math.abs(leftFrontPower), Math.abs(rightFrontPower), Math.abs(leftBackPower), Math.abs(rightBackPower)));
         if (max > 1) {
             leftFrontPower = leftFrontPower / max;
             rightFrontPower = rightFrontPower / max;
@@ -338,6 +503,6 @@ public class TheOnlyDrive extends LinearOpMode {
             rightFront.setPower(rightFrontPower);
             leftBack.setPower(leftBackPower);
             rightBack.setPower(rightBackPower);
-        }*/
+        }
     }
 }
