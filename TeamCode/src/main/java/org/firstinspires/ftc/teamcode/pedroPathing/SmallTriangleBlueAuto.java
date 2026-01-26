@@ -8,135 +8,138 @@ import com.pedropathing.util.Timer;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 @Autonomous(name = "SmallTriangleBlueAuto")
 public class SmallTriangleBlueAuto extends LinearOpMode {
     private Follower follower;
-    private DcMotor shooterMotor;
+    private DcMotorEx shooterMotor;
     private Servo intakeServo2;
-    private float sendToShotSystem = 0.2991f;
-    private float holdEverythingIn = 0.5495f;
-    private float relaxed = 0.8f;
     private DcMotor intakeMotor;
-    boolean intheMiddleOfShooting = false;
     private Servo intakeServo;
     private Timer pathTimer, actionTimer, opModeTimer;
     private int pathState;
-    float timerNum = 0;
-    boolean shootingBallsCurrently = false;
-    private final Pose startPose = new Pose(56, 8.25, Math.toRadians(90));
-    private final Pose manipulatePoseBeginning = new Pose(45, 110, Math.toRadians(90));
-    private final Pose scorePose = new Pose(32, 113, Math.toRadians(130));
-    private final Pose autoEndPose = new Pose(42, 60, Math.toRadians(90));
-    private final Pose getReadyForPickupFirstSet = new Pose(56, 51.5f, Math.toRadians(180));
-    private final Pose pickUpFirstSet = new Pose (19, 51.5f, Math.toRadians(180));
+    float farShotVS = 1630f;
+    private ElapsedTime servoTimer = new ElapsedTime();
+    private final Pose startPose = new Pose(87, 8.25, Math.toRadians(270));
+    private final Pose scorePose = new Pose(87, 10, Math.toRadians(253));
+    private final Pose autoEndPose = new Pose(85.5, 40, Math.toRadians(90));
+    private final Pose getReadyForPickupFirstSet = new Pose(87, 13, Math.toRadians(270));
+    private final Pose pickUpFirstSet = new Pose (100, 14, Math.toRadians(270));
 
     private Path scorePreload;
-    private PathChain manipulatePathChain, getReady1PathChain, grab1PathChain, score1PathChain, finalDestination;
+    private PathChain getReadyToGrab, grabPathChain, scoreAgain, endingPathChain;
+
+
     private void ServoState(boolean IfFalseClosed){
         if(!IfFalseClosed){
-
-            intakeServo.setPosition(0.82f);
-            sleep(300);
-            intakeServo2.setPosition(0.66f);
+            //closed
+            intakeServo2.setPosition(0.12f);
+            servoTimer.reset();
+            while(servoTimer.milliseconds() < 150){}
+            intakeServo.setPosition(0.59f);
             //closed
             //intake 2 servo 0.66
             //intake servo 0.82
         }else{
             //open
-            intakeServo2.setPosition(0.48f);
-            intakeServo.setPosition(1);
+
+            intakeServo2.setPosition(0.01f);
+            intakeServo.setPosition(0.75f);
             //intake 2 servo 0.48
             //intake servo 1
         }
     }
-    public void shootAll3Balls() {
-        shootingBallsCurrently = true;
-        shooterMotor.setPower(-0.5f);
-        if(!intheMiddleOfShooting) {
-            timerNum = (float) opModeTimer.getElapsedTimeSeconds();
-            intheMiddleOfShooting = true;
-        }
-        if(opModeTimer.getElapsedTimeSeconds() >= (2 + timerNum)){
-            intakeServo.setPosition(sendToShotSystem);
-            if(opModeTimer.getElapsedTime() >= (5+timerNum)){
-                shooterMotor.setPower(0);
-                shootingBallsCurrently = false;
-                intheMiddleOfShooting = false;
+
+    void sendToShooting(int howManyBalls){
+        ElapsedTime servoTimer = new ElapsedTime();
+        if(howManyBalls == 2){
+            //shooting with 2 balls
+            intakeServo2.setPosition(0.39f);
+        }else if(howManyBalls == 1){
+            //shooting the last ball
+            intakeServo2.setPosition(0.59f);
+            servoTimer.reset();
+            while(servoTimer.milliseconds()<200){}
+            intakeServo.setPosition(0.18f);
+        }else{
+            intakeServo2.setPosition(0.2f);
+            servoTimer.reset();
+            while (servoTimer.milliseconds() < 250){
             }
+            intakeServo.setPosition(0.69f);
         }
+
     }
     private void setPathState(int newPathState){ pathState = newPathState; }
-    private void SendBallsToShotSystem(int howManyBalls){
-        if(howManyBalls == 2) {
-            intakeServo2.setPosition(0.60f);
-            sleep(300);
-            intakeServo.setPosition(0.7f);
-        }else{
-            intakeServo2.setPosition(0.60f);
-            sleep(300);
-            intakeServo.setPosition(0.67f);
-            sleep(300);
-            intakeServo2.setPosition(1f);
-        }
-    }
     public void autonomousPathUpdate(){
         switch (pathState){
             case 0:
+                shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+                shooterMotor.setVelocity(farShotVS);
                 follower.followPath(scorePreload);
-                shooterMotor.setPower(-0.5f);
                 setPathState(2);
                 break;
             case 2:
                 if(!follower.isBusy()){
-                    SendBallsToShotSystem(2);
-                    sleep(1500);
-                    SendBallsToShotSystem(1);
-                    sleep(1500);
+                    sleep(1300);
+                    sendToShooting(3);
+                    sleep(1300);
+                    sendToShooting(2);
+                    sleep(1300);
+                    sendToShooting(1);
+                    sleep(1300);
+                    shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+                    shooterMotor.setVelocity(0);
                     setPathState(3);
-                    follower.followPath(getReady1PathChain);
+                    follower.followPath(getReadyToGrab);
                     ServoState(true);
-
+                    servoTimer.reset();
                 }
                 break;
             case 3:
                 if(!follower.isBusy()){
-                    shooterMotor.setPower(0);
-                    follower.followPath(grab1PathChain);
+                    ServoState(true);
+                    sleep(300);
+                    requestOpModeStop();
                     intakeMotor.setPower(0.5f);
-                    sleep(1000);
+                    follower.followPath(grabPathChain);
                     setPathState(4);
                 }
                 break;
             case 4:
                 if(!follower.isBusy()){
-
                     ServoState(false);
                     intakeMotor.setPower(0);
-                    sleep(1000);
-                    follower.followPath(score1PathChain);
-                    shooterMotor.setPower(0.88f);
+                    follower.followPath(scoreAgain);
+                    shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+                    shooterMotor.setVelocity(farShotVS);
                     setPathState(5);
                 }
                 break;
             case 5:
                 if(!follower.isBusy()){
-                    SendBallsToShotSystem(2);
-                    sleep(1500);
-                    SendBallsToShotSystem(1);
-                    sleep(1500);
+                    sendToShooting(3);
+                    sleep(1300);
+                    sendToShooting(2);
+                    sleep(1300);
+                    sendToShooting(1);
+                    sleep(1000);
                     setPathState(6);
-                    follower.followPath(finalDestination);
+                    ServoState(true);
+                    follower.followPath(endingPathChain);
                 }
                 break;
             case 6:
                 if(!follower.isBusy()){
                     setPathState(7);
-                    shooterMotor.setPower(0);
-                    ServoState(true);
-                    stop();
+                    shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+                    shooterMotor.setVelocity(0);
+                    intakeMotor.setPower(0);
+                    requestOpModeStop();
                 }
                 break;
         }
@@ -144,37 +147,36 @@ public class SmallTriangleBlueAuto extends LinearOpMode {
     public void buildPaths(){
         scorePreload = new Path(new BezierLine(startPose, scorePose));
         scorePreload.setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading());
-        manipulatePathChain = follower.pathBuilder()
-                .addPath(new BezierLine(manipulatePoseBeginning, scorePose))
-                .setLinearHeadingInterpolation(manipulatePoseBeginning.getHeading(), scorePose.getHeading())
-                .build();
-        getReady1PathChain = follower.pathBuilder()
+        getReadyToGrab = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, getReadyForPickupFirstSet))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), getReadyForPickupFirstSet.getHeading())
                 .build();
-        grab1PathChain = follower.pathBuilder()
+        grabPathChain = follower.pathBuilder()
                 .addPath(new BezierLine(getReadyForPickupFirstSet, pickUpFirstSet))
                 .setLinearHeadingInterpolation(getReadyForPickupFirstSet.getHeading(), pickUpFirstSet.getHeading())
                 .build();
-        score1PathChain = follower.pathBuilder()
+        scoreAgain = follower.pathBuilder()
                 .addPath(new BezierLine(pickUpFirstSet, scorePose))
                 .setLinearHeadingInterpolation(pickUpFirstSet.getHeading(), scorePose.getHeading())
                 .build();
-        finalDestination = follower.pathBuilder()
+        endingPathChain = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, autoEndPose))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), autoEndPose.getHeading())
                 .build();
+
 
     }
 
     @Override
     public void runOpMode() {
         //get shooterMotor
-        shooterMotor = hardwareMap.get(DcMotor.class, "Shooter");
-        shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
         intakeMotor = hardwareMap.get(DcMotor.class, "intakeSystem");
         intakeServo = hardwareMap.get(Servo.class, "PBTSS");
         intakeServo2 = hardwareMap.get(Servo.class, "PBTSS2");
+        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         ServoState(false);
         follower = Constants.createFollower(hardwareMap);
         buildPaths();

@@ -28,8 +28,8 @@ public class TheOnlyDrive extends LinearOpMode {
     boolean automaticShotVelocityCalcultation = true;
     private float DPadNumber = 0.55f;
     private float shotVelocity = 2000;
-    float closeShot = 1110;
-    float farShot = 1500;
+    float closeShot = 1210;
+    float farShot = 1630;
     private Servo intakeServo;
     private Servo intakeServo2;
     private DcMotor leftBack;
@@ -77,10 +77,8 @@ public class TheOnlyDrive extends LinearOpMode {
                 DPadNumberManagement();
                 IntakeMotorManagement();
                 ServoManagement();
-                ResetFollower();
                 shotMotorManagement();
                 //make a shot, servo sending balls to shot system
-
                 telemetryData();
             }
         }
@@ -108,13 +106,6 @@ public class TheOnlyDrive extends LinearOpMode {
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
     }
-    private void ResetFollower(){
-        if(gamepad1.right_bumper){
-            follower = Constants.createFollower(hardwareMap);
-            follower.setStartingPose(new Pose(64, 8.5, Math.toRadians(0)));
-            follower.update();
-        }
-    }
     private void ServoState(boolean IfFalseClosed){
         if(!IfFalseClosed){
             //closed
@@ -127,25 +118,8 @@ public class TheOnlyDrive extends LinearOpMode {
             //intake servo 0.82
         }else{
             //open
-            boolean openingManuever =false;
-            if(intakeServo2.getPosition()> 0.35f){
-                openingManuever = true;
-                intakeServo.setPosition(0.69f);
-                servoTimer.reset();
-                while (servoTimer.milliseconds() < 100){
-                    movementLogic();
-                    shotMotorManagement();
-                    IntakeMotorManagement();
-                }
-            }
+
             intakeServo2.setPosition(0.01f);
-            if(openingManuever){
-                while (servoTimer.milliseconds() < 550){
-                    movementLogic();
-                    shotMotorManagement();
-                    IntakeMotorManagement();
-                }
-            }
             intakeServo.setPosition(0.75f);
             //intake 2 servo 0.48
             //intake servo 1
@@ -166,17 +140,18 @@ public class TheOnlyDrive extends LinearOpMode {
             }else if(currentServoState == IntakeServoPos.SendToShooting2){
                 //shooting the last ball
                 currentServoState = IntakeServoPos.SendToShooting1;
-                intakeServo2.setPosition(0.59f);
-            }else{
-                currentServoState = IntakeServoPos.SendToShooting3;
-                intakeServo2.setPosition(0.2f);
+                intakeServo2.setPosition(0.52f);
                 servoTimer.reset();
-                while (servoTimer.milliseconds() < 250){
+                while (servoTimer.milliseconds() < 100){
                     movementLogic();
                     shotMotorManagement();
                     IntakeMotorManagement();
                 }
-                intakeServo.setPosition(0.69f);
+                intakeServo.setPosition(0.16f);
+
+            }else{
+                currentServoState = IntakeServoPos.SendToShooting3;
+                intakeServo2.setPosition(0.2f);
             }
             /*if(currentServoState == IntakeServoPos.SendToShooting1){
                 currentServoState = IntakeServoPos.SendToShooting2;
@@ -212,15 +187,14 @@ public class TheOnlyDrive extends LinearOpMode {
                 intakeServo.setPosition(0.7f);
             }*/
             servoTimer.reset();
-            sleep(100);
+            sleep(150);
         }
 
         if(gamepad2.b){
-            gamepad2.setLedColor(0, 265, 3, 5000);
-            gamepad2.rumble(2000);
             if(currentServoState == IntakeServoPos.Holding){
                 currentServoState = IntakeServoPos.Standby;
                 ServoState(true);
+                gamepad2.rumble(500);
                 //take in 1
             }else if(currentServoState == IntakeServoPos.Standby){
                 currentServoState = IntakeServoPos.Holding;
@@ -228,6 +202,7 @@ public class TheOnlyDrive extends LinearOpMode {
             }else {
                 currentServoState = IntakeServoPos.Standby;
                 ServoState(true);
+                gamepad2.rumble(500);
             }
             sleep(150);
         }
@@ -240,7 +215,7 @@ public class TheOnlyDrive extends LinearOpMode {
         }
 
         if(gamepad2.left_bumper){
-            gamepad2.setLedColor(265, 10, 12, 5000);
+            gamepad2.setLedColor(0, 0, 265, 3000);
             intakeSpinning = false;
             shotVelocity = closeShot;
             intakeMotor.setPower(0);
@@ -253,7 +228,7 @@ public class TheOnlyDrive extends LinearOpMode {
             }*/
         }
         if(gamepad2.right_bumper){
-            gamepad2.setLedColor(265, 10, 12, 5000);
+            gamepad2.setLedColor(265, 0, 0, 3000);
             intakeSpinning = false;
             intakeMotor.setPower(0);
             shotVelocity = farShot;
@@ -269,17 +244,12 @@ public class TheOnlyDrive extends LinearOpMode {
             shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
             shooterMotor.setVelocity(shotVelocity);
         }else{
-            while(shooterMotor.getVelocity() > 100){
+            if(shooterMotor.getVelocity() < 100){
+                shooterMotor.setVelocity(0);
+            }else {
                 shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
-                shooterMotor.setVelocity(-shooterMotor.getVelocity()/2f);
-                movementLogic();
-                DPadNumberManagement();
-                IntakeMotorManagement();
-                if(gamepad2.left_bumper){
-                    break;
-                }
+                shooterMotor.setVelocity(-shooterMotor.getVelocity() / 2f);
             }
-            shooterMotor.setVelocity(0);
         }
     }
     private void DPadNumberManagement(){
@@ -472,9 +442,9 @@ public class TheOnlyDrive extends LinearOpMode {
         float lateral = gamepad1.left_stick_x;
         float yaw = gamepad1.right_stick_x;
         if(gamepad1.right_trigger>0){
-            axial = axial / 3;
-            lateral = lateral / 3;
-            yaw = yaw / 3;
+            axial = axial / 2;
+            lateral = lateral / 2;
+            yaw = yaw / 2;
         }
         //follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
         // Combine the joystick requests for each axis-motion to determine each wheel's power.

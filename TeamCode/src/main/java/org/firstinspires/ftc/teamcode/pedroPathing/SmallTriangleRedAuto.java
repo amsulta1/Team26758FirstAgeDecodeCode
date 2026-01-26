@@ -22,13 +22,13 @@ public class SmallTriangleRedAuto extends LinearOpMode {
     private Servo intakeServo;
     private Timer pathTimer, actionTimer, opModeTimer;
     private int pathState;
-    float farShotVS = 1700f;
+    float farShotVS = 1630f;
     private ElapsedTime servoTimer = new ElapsedTime();
     private final Pose startPose = new Pose(87, 8.25, Math.toRadians(270));
-    private final Pose scorePose = new Pose(87.5, 20, Math.toRadians(245));
-    private final Pose autoEndPose = new Pose(85.5f, 40, Math.toRadians(90));
-    private final Pose getReadyForPickupFirstSet = new Pose(100, 36, Math.toRadians(0));
-    private final Pose pickUpFirstSet = new Pose (133.25, 36f, Math.toRadians(0));
+    private final Pose scorePose = new Pose(87, 10, Math.toRadians(287));
+    private final Pose autoEndPose = new Pose(85.5, 40, Math.toRadians(90));
+    private final Pose getReadyForPickupFirstSet = new Pose(87, 13, Math.toRadians(270));
+    private final Pose pickUpFirstSet = new Pose (100, 14, Math.toRadians(270));
 
     private Path scorePreload;
     private PathChain getReadyToGrab, grabPathChain, scoreAgain, endingPathChain;
@@ -46,20 +46,11 @@ public class SmallTriangleRedAuto extends LinearOpMode {
             //intake servo 0.82
         }else{
             //open
-            boolean openingManuever =false;
-            if(intakeServo2.getPosition()> 0.35f){
-                openingManuever = true;
-                intakeServo.setPosition(0.69f);
-                servoTimer.reset();
-                while (servoTimer.milliseconds() < 100){
-                }
-            }
+
             intakeServo2.setPosition(0.01f);
-            if(openingManuever){
-                while (servoTimer.milliseconds() < 550){
-                }
-            }
             intakeServo.setPosition(0.75f);
+            //intake 2 servo 0.48
+            //intake servo 1
         }
     }
 
@@ -71,6 +62,9 @@ public class SmallTriangleRedAuto extends LinearOpMode {
         }else if(howManyBalls == 1){
             //shooting the last ball
             intakeServo2.setPosition(0.59f);
+            servoTimer.reset();
+            while(servoTimer.milliseconds()<200){}
+            intakeServo.setPosition(0.18f);
         }else{
             intakeServo2.setPosition(0.2f);
             servoTimer.reset();
@@ -91,21 +85,26 @@ public class SmallTriangleRedAuto extends LinearOpMode {
                 break;
             case 2:
                 if(!follower.isBusy()){
+                    sleep(1300);
                     sendToShooting(3);
                     sleep(1300);
                     sendToShooting(2);
                     sleep(1300);
                     sendToShooting(1);
-                    sleep(1000);
+                    sleep(1300);
                     shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
                     shooterMotor.setVelocity(0);
                     setPathState(3);
                     follower.followPath(getReadyToGrab);
                     ServoState(true);
+                    servoTimer.reset();
                 }
                 break;
             case 3:
                 if(!follower.isBusy()){
+                    ServoState(true);
+                    sleep(300);
+                    requestOpModeStop();
                     intakeMotor.setPower(0.5f);
                     follower.followPath(grabPathChain);
                     setPathState(4);

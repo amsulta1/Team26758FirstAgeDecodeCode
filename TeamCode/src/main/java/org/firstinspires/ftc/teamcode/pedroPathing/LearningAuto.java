@@ -28,7 +28,7 @@ public class LearningAuto extends LinearOpMode {
             follower.followPath(fullAutoPath);
             while (opModeIsActive()) {
                 // OpMode loop
-                if(!follower.isBusy()){requestOpModeStop();}
+                //if(!follower.isBusy()){requestOpModeStop();}
             }
         }
     }

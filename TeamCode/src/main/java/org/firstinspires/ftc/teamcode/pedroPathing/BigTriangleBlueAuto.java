@@ -3,22 +3,16 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
-import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.Const;
-import org.firstinspires.ftc.robotcore.external.JavaUtil;
-
-@Autonomous(name = "BigTriangleRedAuto")
-public class BigTriangleRedAuto extends LinearOpMode {
+@Autonomous(name = "BigTriangleBlueAuto")
+public class BigTriangleBlueAuto extends LinearOpMode {
     private Follower follower;
     private int pathState = 0;
     DcMotor leftBack;
@@ -32,7 +26,7 @@ public class BigTriangleRedAuto extends LinearOpMode {
     private Servo intakeServo2;
     float closeRangeVS= 1200;
     private final float intakeMotorSpeed = 0.5f;
-//all x and y switched
+    //all x and y switched
     //added 90 to headings
     private final Pose startPose = new Pose(0.25f,110.25f, Math.toRadians(270));
     private final Pose getReadyToGrab = new Pose(0.25f, 37.5f, Math.toRadians(270));
@@ -174,7 +168,7 @@ public class BigTriangleRedAuto extends LinearOpMode {
             case 67:
                 ElapsedTime timer = new ElapsedTime();
                 float axial = 0;
-                float lateral = -1;
+                float lateral = 1;
                 float yaw = 0;
                 double leftFrontPower = axial + lateral + yaw;
                 double rightFrontPower = (axial - lateral) - yaw;
@@ -185,7 +179,7 @@ public class BigTriangleRedAuto extends LinearOpMode {
                 leftBack.setPower(leftBackPower);
                 rightBack.setPower(rightBackPower);
                 sleep(1000);
-                requestOpModeStop();
+                setPathState(30);
                 break;
             default:
                 break;

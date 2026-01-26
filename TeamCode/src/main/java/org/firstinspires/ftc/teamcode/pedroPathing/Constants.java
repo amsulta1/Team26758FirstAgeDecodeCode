@@ -16,21 +16,25 @@ public class Constants {
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(6.80)
             .forwardZeroPowerAcceleration(-34.86982212235985)
-            .lateralZeroPowerAcceleration(-48.0917597945857);
+            .lateralZeroPowerAcceleration(-71.53268917544126)
+            .translationalPIDFCoefficients(new PIDFCoefficients(-0.135f, 0, -0.03f, -0.02f))
+            .headingPIDFCoefficients(new PIDFCoefficients(-1.4f, 0, -0.034f, -0.02f));
+            //.translationalPIDFCoefficients(new PIDFCoefficients(0, 0, 0, 0))
+            //.headingPIDFCoefficients(new PIDFCoefficients(0, 0, 0, 0));
 
     //TODO: Set offset of odometry pods in POD(x/y) and hardware map names + encoder directions if needed
     public static ThreeWheelConstants localizerConstants = new ThreeWheelConstants()
             .forwardTicksToInches(0.0030155604382137973)
             .strafeTicksToInches(0.0030187143237504835)
             .turnTicksToInches(-0.0029334360327087825)
-            .leftPodY(6.25)
-            .rightPodY(-6.25)
+            .leftPodY(-6.25)
+            .rightPodY(6.25)
             .strafePodX(-6.4375)
-            .leftEncoder_HardwareMapName("rightFront")
-            .rightEncoder_HardwareMapName("leftFront")
+            .rightEncoder_HardwareMapName("rightFront")
+            .leftEncoder_HardwareMapName("leftFront")
             .strafeEncoder_HardwareMapName("rightBack")
-            .leftEncoderDirection(Encoder.FORWARD)
-            .rightEncoderDirection(Encoder.REVERSE)
+            .leftEncoderDirection(Encoder.REVERSE)
+            .rightEncoderDirection(Encoder.FORWARD)
             .strafeEncoderDirection(Encoder.FORWARD);
     public static MecanumConstants driveConstants = new MecanumConstants()
             .maxPower(1)
@@ -42,8 +46,8 @@ public class Constants {
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
             .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
-            .xVelocity(64.62606674453679)
-            .yVelocity(52.04324042497011);
+            .xVelocity(65.28005951083324)
+            .yVelocity(54.82756187062718);
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
 
     public static Follower createFollower(HardwareMap hardwareMap) {
