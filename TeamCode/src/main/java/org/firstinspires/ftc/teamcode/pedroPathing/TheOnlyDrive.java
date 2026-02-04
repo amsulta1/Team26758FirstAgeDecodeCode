@@ -141,12 +141,12 @@ public class TheOnlyDrive extends LinearOpMode {
                 //shooting the last ball
                 currentServoState = IntakeServoPos.SendToShooting1;
                 intakeServo2.setPosition(0.52f);
-                servoTimer.reset();
+                /*servoTimer.reset();
                 while (servoTimer.milliseconds() < 100){
                     movementLogic();
                     shotMotorManagement();
                     IntakeMotorManagement();
-                }
+                }*/
                 intakeServo.setPosition(0.16f);
 
             }else{
@@ -279,14 +279,16 @@ public class TheOnlyDrive extends LinearOpMode {
     }
     private void IntakeMotorManagement(){
         //switch intake motor directinos
-        if(gamepad2.x){
+        /*if(gamepad2.x){
             if( intakePower == 0.55f ){ intakePower = -0.55f; }
             else{ intakePower = 0.55f; }
-        }
+        }*/
         //intake motor on and off
         if(intakeSpinning) {
             shotMotorOn = false;
-            intakeMotor.setPower(intakePower);
+            int multiplierForIntakePower = 1;
+            if(gamepad2.x){ multiplierForIntakePower= -1;}
+            intakeMotor.setPower(intakePower * multiplierForIntakePower);
         }
         else{intakeMotor.setPower(0);}
         if(gamepad2.right_trigger > 0){intakeSpinning = true;}

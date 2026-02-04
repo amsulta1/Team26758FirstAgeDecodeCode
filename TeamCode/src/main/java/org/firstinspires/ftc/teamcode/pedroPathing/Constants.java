@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.pedropathing.control.FilteredPIDFCoefficients;
 import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
@@ -12,8 +13,50 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class Constants {
-    //TODO: Set mass of robot
     public static FollowerConstants followerConstants = new FollowerConstants()
+            .mass(8)
+            .forwardZeroPowerAcceleration(-34.98067785792871)
+            .lateralZeroPowerAcceleration(-53.71272384623891)
+            .translationalPIDFCoefficients(new PIDFCoefficients(0.2, 0, 0.02, 0.02))
+            .headingPIDFCoefficients(new PIDFCoefficients(1.6, 0, 0.1, 0.02))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.025, 0, 0.00001, 0.6, 0.01))
+            .centripetalScaling(0.00002);
+
+    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
+    public static MecanumConstants driveConstants = new MecanumConstants()
+            .maxPower(1)
+            .rightFrontMotorName("rightFront")
+            .rightRearMotorName("rightBack")
+            .leftFrontMotorName("leftFront")
+            .leftRearMotorName("leftBack")
+            .xVelocity(70.30400855931663)
+            .yVelocity(58.936486330917965)
+            .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
+            .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
+            .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+            .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD);
+    public static ThreeWheelConstants localizerConstants = new ThreeWheelConstants()
+            .forwardTicksToInches(-0.002961043207970234)
+            .strafeTicksToInches(-0.0029860905682239695)
+            .turnTicksToInches(-0.0029192616837549925)
+            .leftPodY(6.25)
+            .rightPodY(-6.25)
+            .strafePodX(-7)
+            .leftEncoder_HardwareMapName("rightFront")
+            .rightEncoder_HardwareMapName("leftFront")
+            .strafeEncoder_HardwareMapName("rightBack")
+            .leftEncoderDirection(Encoder.REVERSE)
+            .rightEncoderDirection(Encoder.FORWARD)
+            .strafeEncoderDirection(Encoder.FORWARD);
+    public static Follower createFollower(HardwareMap hardwareMap) {
+        return new FollowerBuilder(followerConstants, hardwareMap)
+                .pathConstraints(pathConstraints)
+                .mecanumDrivetrain(driveConstants)
+                .threeWheelLocalizer(localizerConstants)
+                .build();
+    }
+    //TODO: Set mass of robot
+    /*public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(6.80)
             .forwardZeroPowerAcceleration(-34.86982212235985)
             .lateralZeroPowerAcceleration(-71.53268917544126)
@@ -56,5 +99,5 @@ public class Constants {
                 .mecanumDrivetrain(driveConstants)
                 .threeWheelLocalizer(localizerConstants)
                 .build();
-    }
+    }*/
 }

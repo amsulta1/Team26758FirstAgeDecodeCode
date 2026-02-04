@@ -51,7 +51,8 @@ public class EncoderDiagnostics extends OpMode {
         leftEncoder = hardwareMap.get(DcMotorEx.class, "leftFront");
         strafeEncoder = hardwareMap.get(DcMotorEx.class, "rightBack");
 
-        rightEncoder.setDirection(DcMotorSimple.Direction.REVERSE);
+        leftEncoder.setDirection(DcMotorSimple.Direction.REVERSE);
+        rightEncoder.setDirection(DcMotorSimple.Direction.FORWARD);
         strafeEncoder.setDirection(DcMotorSimple.Direction.FORWARD);
 
         // Record starting positions

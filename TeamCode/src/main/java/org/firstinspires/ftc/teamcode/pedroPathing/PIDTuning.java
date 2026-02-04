@@ -28,7 +28,8 @@ public class PIDTuning extends LinearOpMode {
     ElapsedTime timerForTargetSpeed = new ElapsedTime();
     float TICKSINDEGREES = 700.0f / 180.0f;
     boolean activelyTiming = false;
-    double P = 50.0f, I = 0.3549f, D = 96.1f, F = 10.0f;
+    double P = 0, I = 0, D = 0, F = 0;
+    //double P = 50.0f, I = 0.3549f, D = 96.1f, F = 10.0f;
     double finalTimeForShotTiming = -1f;
     //short shot 1110
     @Override
