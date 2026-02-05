@@ -3,7 +3,9 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.control.PIDFController;
+import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -21,6 +23,9 @@ public class TheOnlyDrive extends LinearOpMode {
     private DcMotor rightFront;
     //take in 0.82  hold .67    shoot 0.3
     private DcMotor rightBack;
+    private Pose farShotPose = new Pose(88, 18, Math.toRadians(245));
+    private Pose closeShotPose = new Pose(82, 135.5, Math.toRadians(180));
+    private Pose randomPoseToSave = new Pose(77, 77, Math.toRadians(90));
     private boolean shotMotorOn = false;
     private Follower follower;
     private DcMotorEx shooterMotor;
@@ -29,7 +34,7 @@ public class TheOnlyDrive extends LinearOpMode {
     private float DPadNumber = 0.55f;
     private float shotVelocity = 2000;
     float closeShot = 1210;
-    float farShot = 1630;
+    float farShot = 1668;
     private Servo intakeServo;
     private Servo intakeServo2;
     private DcMotor leftBack;
@@ -45,7 +50,7 @@ public class TheOnlyDrive extends LinearOpMode {
     IntakeServoPos currentServoState = IntakeServoPos.Standby;
     private DcMotor intakeMotor;
     TelemetryManager telemetryM;
-    private final Pose autoEndPose = new Pose(72, 8.25, Math.toRadians(90));
+    private final Pose autoEndPose = new Pose(85, 45, Math.toRadians(90));
     boolean scoringInBlueGoal = true;
     int whichMotorIsDPad = 4;
     //leftyimu
@@ -103,6 +108,7 @@ public class TheOnlyDrive extends LinearOpMode {
     private void FollowerInit(){
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(autoEndPose);
+        follower.startTeleopDrive();
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
     }
@@ -439,19 +445,65 @@ public class TheOnlyDrive extends LinearOpMode {
         leftFront.setDirection(DcMotor.Direction.REVERSE);
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
+    boolean areValuesGreaterThan(float value, float axial, float lateral, float yaw){
+        if(Math.abs(axial) > value){ return true; }
+        if(Math.abs(lateral) > value){ return true; }
+        if(Math.abs(yaw) > value){ return true; }
+        return  false;
+    }
     public void movementLogic(){
         float axial = -gamepad1.left_stick_y;
         float lateral = gamepad1.left_stick_x;
         float yaw = gamepad1.right_stick_x;
         if(gamepad1.right_trigger>0){
-            axial = axial / 2;
-            lateral = lateral / 2;
-            yaw = yaw / 2;
+            axial = axial * 0.5f;
+            lateral = lateral * 0.5f;
+            yaw = yaw * 0.5f;
         }
-        //follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
+        float valueOfMovementMin = 0.1f;
+        if(gamepad1.x){
+            randomPoseToSave = follower.getPose();
+        }
+        if(gamepad1.a){
+            if(areValuesGreaterThan(valueOfMovementMin, axial, lateral, yaw)){
+                closeShotPose = follower.getPose();
+            }
+            else {
+                PathChain goToClosestShot = follower.pathBuilder()
+                        .addPath(new BezierLine(follower.getPose(), closeShotPose))
+                        .setLinearHeadingInterpolation(follower.getHeading(), closeShotPose.getHeading())
+                        .build();
+                follower.followPath(goToClosestShot);
+            }
+        } else if(gamepad1.b){
+            if(areValuesGreaterThan(valueOfMovementMin, axial, lateral, yaw)){
+                farShotPose = follower.getPose();
+            }
+            else {
+                PathChain goToFarShot = follower.pathBuilder()
+                        .addPath(new BezierLine(follower.getPose(), farShotPose))
+                        .setLinearHeadingInterpolation(follower.getHeading(), farShotPose.getHeading())
+                        .build();
+                follower.followPath(goToFarShot);
+            }
+        }else if(gamepad1.right_bumper){
+            PathChain goToRandomSpot = follower.pathBuilder()
+                    .addPath(new BezierLine(follower.getPose(), randomPoseToSave))
+                    .setLinearHeadingInterpolation(follower.getHeading(), randomPoseToSave.getHeading())
+                    .build();
+            follower.followPath(goToRandomSpot);
+        }
+        if(areValuesGreaterThan(valueOfMovementMin, axial, lateral, yaw) && follower.isBusy()) {
+            follower.breakFollowing();
+            follower.startTeleopDrive();
+            follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
+        }else{
+            follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
+        }
+
         // Combine the joystick requests for each axis-motion to determine each wheel's power.
         // Set up a variable for each drive wheel to save the power level for telemetry.
-        double leftFrontPower = axial + lateral + yaw;
+        /*double leftFrontPower = axial + lateral + yaw;
         double rightFrontPower = (axial - lateral) - yaw;
         double leftBackPower = (axial - lateral) + yaw;
         double rightBackPower = (axial + lateral) - yaw;
@@ -475,6 +527,6 @@ public class TheOnlyDrive extends LinearOpMode {
             rightFront.setPower(rightFrontPower);
             leftBack.setPower(leftBackPower);
             rightBack.setPower(rightBackPower);
-        }
+        }*/
     }
 }

@@ -6,6 +6,7 @@ import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
+import com.pedropathing.paths.PathConstraints;
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -13,8 +14,10 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Autonomous(name = "RedFar12Ball")
-public class RedFar12Ball extends LinearOpMode {
+import java.util.List;
+
+@Autonomous(name = "RedClose12Ball")
+public class RedClose12Ball extends LinearOpMode {
     private Follower follower;
     private int pathState = 0;
     private float farShotVS = 1668;
@@ -24,18 +27,19 @@ public class RedFar12Ball extends LinearOpMode {
     private Servo intakeServo2;
     private DcMotor intakeMotor;
     private DcMotorEx shooterMotor;
-    private final Pose startPose = new Pose(87.25, 8.5, Math.toRadians(0));
-    private final Pose scorePose = new Pose(88, 18, Math.toRadians(245));
-    private final Pose ReadyUp1 = new Pose(90, 35.5, Math.toRadians(0));
-    private final Pose Grab1 = new Pose(121, 35.5, Math.toRadians(0));
+    private final Pose startPose = new Pose(121, 120, Math.toRadians(90));
+    private final Pose scorePose = new Pose(96.5, 96.5, Math.toRadians(223));
+    private final Pose ReadyUp3 = new Pose(90, 35.5, Math.toRadians(0));
+    private final Pose Grab3 = new Pose(121, 35.5, Math.toRadians(0));
     private final Pose ReadyUp2 = new Pose(90, 60, Math.toRadians(0));
     private final Pose Grab2 = new Pose(121, 60, Math.toRadians(0));
-    private final Pose ReadyUp3 = new Pose(90, 84, Math.toRadians(0));
-    private final Pose Grab3 = new Pose(121, 84, Math.toRadians(0));
+    private final Pose GateOpen = new Pose(128, 75, Math.toRadians(90));
+    private final Pose ReadyUp1 = new Pose(90, 84, Math.toRadians(0));
+    private final Pose Grab1 = new Pose(121, 84, Math.toRadians(0));
     private final Pose autoEnd = new Pose(85, 45, Math.toRadians(90));
 
     private Path scorePreload;
-    private PathChain R1Chain, G1Chain, score1Chain, R2Chain, G2Chain, score2Chain, R3Chain, G3Chain, score3Chain, endChain;
+    private PathChain R1Chain, G1Chain, HitGateChain, score1Chain, R2Chain, G2Chain, score2Chain, R3Chain, G3Chain, score3Chain, endChain;
 
     private void buidPaths(){
         scorePreload = new Path(new BezierLine(startPose, scorePose));
@@ -49,9 +53,13 @@ public class RedFar12Ball extends LinearOpMode {
                 .addPath(new BezierLine(ReadyUp1, Grab1))
                 .setLinearHeadingInterpolation(ReadyUp1.getHeading(), Grab1.getHeading())
                 .build();
+        HitGateChain = follower.pathBuilder()
+                .addPath(new BezierCurve(Grab1, new Pose(127.5, 79, Math.toRadians(90)), GateOpen))
+                .setLinearHeadingInterpolation(Grab1.getHeading(), GateOpen.getHeading())
+                .build();
         score1Chain = follower.pathBuilder()
-                .addPath(new BezierLine(Grab1, scorePose))
-                .setLinearHeadingInterpolation(Grab1.getHeading(), scorePose.getHeading())
+                .addPath(new BezierLine(GateOpen, scorePose))
+                .setLinearHeadingInterpolation(GateOpen.getHeading(), scorePose.getHeading())
                 .build();
         R2Chain = follower.pathBuilder()
                 .addPath(new BezierLine(scorePose, ReadyUp2))
@@ -161,13 +169,19 @@ public class RedFar12Ball extends LinearOpMode {
                 if(!follower.isBusy()){
                     intakeMotor.setPower(intakePower);
                     follower.followPath(G1Chain);
+                    setPathState(34);
+                }
+                break;
+            case 34:
+                if(!follower.isBusy()){
+                    intakeMotor.setPower(0);
+                    ServoState(false);
+                    follower.followPath(HitGateChain);
                     setPathState(3);
                 }
                 break;
             case 3:
                 if(!follower.isBusy()){
-                    intakeMotor.setPower(0);
-                    ServoState(false);
                     follower.followPath(score1Chain);
                     setPathState(4);
                 }
