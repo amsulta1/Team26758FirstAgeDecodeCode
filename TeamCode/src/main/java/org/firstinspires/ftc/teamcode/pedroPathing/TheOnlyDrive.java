@@ -6,6 +6,7 @@ import com.pedropathing.control.PIDFController;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -15,28 +16,41 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
+import com.sun.tools.javac.util.List;
 
 import org.firstinspires.ftc.robotcore.external.JavaUtil;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
-@TeleOp(name = "TheOnlyDriveNew")
+@TeleOp(name = "My Leige, How Are You")
 public class TheOnlyDrive extends LinearOpMode {
     private DcMotor rightFront;
     //take in 0.82  hold .67    shoot 0.3
     private DcMotor rightBack;
+    private HuskyLens camera;
     private Pose farShotPose = new Pose(88, 18, Math.toRadians(245));
-    private Pose closeShotPose = new Pose(82, 135.5, Math.toRadians(180));
-    private Pose randomPoseToSave = new Pose(77, 77, Math.toRadians(90));
+    private Pose closeShotPose = new Pose(72, 133.5, Math.toRadians(180));
+    private Pose ParkingPose = new Pose(40, 35, Math.toRadians(90));
     private boolean shotMotorOn = false;
     private Follower follower;
+    boolean usingAutoPosition = false;
     private DcMotorEx shooterMotor;
     private DcMotor leftFront;
-    boolean automaticShotVelocityCalcultation = true;
-    private float DPadNumber = 0.55f;
     private float shotVelocity = 2000;
-    float closeShot = 1210;
-    float farShot = 1668;
+    float closeShot = 1140;
+    float farShot = 1245;
     private Servo intakeServo;
     private Servo intakeServo2;
+    /// Camera Stuff
+    double kP = 0.002; //og 0.002
+    double error = 0;
+    double lastError = 0;
+    double goalX = -400;  // offset
+    double angleTolerance = 0.1;
+    double kD = 0.0001; // og 0.0001
+    double curTime = 0;
+    double lastTime = 0;
+    ///
     private DcMotor leftBack;
     float intakePower = 0.8f;
     private ElapsedTime servoTimer = new ElapsedTime();
@@ -50,9 +64,10 @@ public class TheOnlyDrive extends LinearOpMode {
     IntakeServoPos currentServoState = IntakeServoPos.Standby;
     private DcMotor intakeMotor;
     TelemetryManager telemetryM;
-    private final Pose autoEndPose = new Pose(85, 45, Math.toRadians(90));
+    private final Pose autoEndPose = new Pose(85, 55, Math.toRadians(90));
+
+    Pose weAreGoingTo = autoEndPose;
     boolean scoringInBlueGoal = true;
-    int whichMotorIsDPad = 4;
     //leftyimu
     //middleximu
     //rightyimu
@@ -69,6 +84,7 @@ public class TheOnlyDrive extends LinearOpMode {
         initializationLogic();
         shooterMotor.setVelocityPIDFCoefficients(10.0f, 0.3549f, 96.1f, 10.0f);
         FollowerInit();
+        camera.initialize();
         waitForStart();
         runtime.reset();
         if (opModeIsActive()) {
@@ -79,7 +95,6 @@ public class TheOnlyDrive extends LinearOpMode {
                 follower.update();
                 telemetryM.update();
                 movementLogic();
-                DPadNumberManagement();
                 IntakeMotorManagement();
                 ServoManagement();
                 shotMotorManagement();
@@ -90,19 +105,12 @@ public class TheOnlyDrive extends LinearOpMode {
     }
     public void telemetryData(){
         telemetry.addData("Intake Motor Position: ", intakeServo.getPosition());
-        telemetry.addData("D-Pad Number: ", DPadNumber);
-        telemetry.addData("Which Motor: ", whichMotorIsDPad);
         telemetry.addLine("0 = Intake Servo, 1 = Intake Motor, 2 = Shot Motor, 3 = Intake Servo 2");
         telemetry.addData("X: ", follower.getPose().getX());
         telemetry.addData("Y: ", follower.getPose().getY());
         telemetry.addData("Heading: ", follower.getPose().getHeading());
         telemetry.addData("Scoring In Blue Goal: ", scoringInBlueGoal);
         telemetry.addData("Shot Motor VS: ", shooterMotor.getVelocity());
-        if(automaticShotVelocityCalcultation){
-            telemetry.addData("Calculating Shot Velocity at ", shotVelocity);
-        }else{
-            telemetry.addLine("Manual Shot Velocity of 1000");
-        }
         telemetry.update();
     }
     private void FollowerInit(){
@@ -130,6 +138,18 @@ public class TheOnlyDrive extends LinearOpMode {
             //intake 2 servo 0.48
             //intake servo 1
         }
+    }
+    void sendToShotRamp(int howManyBalls){
+        if(howManyBalls == 2){
+            intakeServo2.setPosition(0.39f);
+        }else if(howManyBalls == 1){
+            intakeServo2.setPosition(0.52f);
+            intakeServo.setPosition(0.16f);
+
+        }else{
+            intakeServo2.setPosition(0.2f);
+        }
+
     }
     private void ServoManagement(){
 
@@ -219,7 +239,12 @@ public class TheOnlyDrive extends LinearOpMode {
             currentServoState = IntakeServoPos.Standby;
             shotMotorOn = false;
         }
-
+        if(gamepad2.y){
+            shotVelocity = -500;
+            shotMotorOn = true;
+        }else{
+            shotMotorOn = false;
+        }
         if(gamepad2.left_bumper){
             gamepad2.setLedColor(0, 0, 265, 3000);
             intakeSpinning = false;
@@ -246,43 +271,20 @@ public class TheOnlyDrive extends LinearOpMode {
                 shooterMotor.setPower(goodVoltageNumberFinder(-0.48f, 12.3f));
             }*/
         }
+
         if(shotMotorOn){
-            shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+            shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
             shooterMotor.setVelocity(shotVelocity);
         }else{
             if(shooterMotor.getVelocity() < 100){
                 shooterMotor.setVelocity(0);
             }else {
-                shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+                shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
                 shooterMotor.setVelocity(-shooterMotor.getVelocity() / 2f);
             }
         }
     }
-    private void DPadNumberManagement(){
-        DPadNumChanging();
-        if(gamepad1.y){
-            if(whichMotorIsDPad >= 3){whichMotorIsDPad = -1;}
-            whichMotorIsDPad++;
-            sleep(200);
-        }
-        if(gamepad1.x){whichMotorIsDPad = 4;}
-        switch (whichMotorIsDPad){
-            case 0:
-                intakeServo.setPosition(DPadNumber);
-                break;
-            case 1:
-                intakePower = DPadNumber;
-                break;
-            case 2:
-                shotVelocity = DPadNumber;
-                //shooterMotor.setPower(DPadNumber);
-                break;
-            case 3:
-                intakeServo2.setPosition(DPadNumber);
-            default:
-                break;
-        }
-    }
+
     private void IntakeMotorManagement(){
         //switch intake motor directinos
         /*if(gamepad2.x){
@@ -291,37 +293,16 @@ public class TheOnlyDrive extends LinearOpMode {
         }*/
         //intake motor on and off
         if(intakeSpinning) {
-            shotMotorOn = false;
             int multiplierForIntakePower = 1;
             if(gamepad2.x){ multiplierForIntakePower= -1;}
             intakeMotor.setPower(intakePower * multiplierForIntakePower);
+            shotMotorOn = false;
         }
         else{intakeMotor.setPower(0);}
         if(gamepad2.right_trigger > 0){intakeSpinning = true;}
         else{intakeSpinning = false;}
     }
-    private void DPadNumChanging(){
-        float multiplier = 1f;
-        if(whichMotorIsDPad == 2){
-            multiplier = 1f;
-        }
-        if(gamepad2.dpad_up){
-            DPadNumber += (0.1f * multiplier);
-            sleep(200);
-        }
-        if(gamepad2.dpad_down){
-            DPadNumber -= (0.1f * multiplier);
-            sleep(200);
-        }
-        if(gamepad2.dpad_right){
-            DPadNumber += (0.01f * multiplier);
-            sleep(200);
-        }
-        if(gamepad2.dpad_left){
-            DPadNumber -= (0.01f * multiplier);
-            sleep(200);
-        }
-    }
+
     /**
      * Calculates the target RPM based on physics and energy compensation,
      * then sets the motor's velocity using PIDF with dynamic voltage compensation.
@@ -425,6 +406,8 @@ public class TheOnlyDrive extends LinearOpMode {
     }
     */
     public void initializationLogic(){
+        camera = hardwareMap.get(HuskyLens.class, "camera");
+        camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
         leftFront = hardwareMap.get(DcMotor.class, "leftFront");
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
@@ -453,53 +436,98 @@ public class TheOnlyDrive extends LinearOpMode {
     }
     public void movementLogic(){
         float axial = -gamepad1.left_stick_y;
-        float lateral = gamepad1.left_stick_x;
-        float yaw = gamepad1.right_stick_x;
-        if(gamepad1.right_trigger>0){
-            axial = axial * 0.5f;
-            lateral = lateral * 0.5f;
-            yaw = yaw * 0.5f;
+        float lateral = -gamepad1.left_stick_x;
+        float yaw = -gamepad1.right_stick_x;
+        if(gamepad1.right_trigger > 0){
+            axial = axial * 0.35f;
+            lateral = lateral * 0.35f;
+            yaw = yaw * 0.35f;
         }
-        float valueOfMovementMin = 0.1f;
-        if(gamepad1.x){
-            randomPoseToSave = follower.getPose();
+        Pose farShotPoseOG = new Pose(88, 18, Math.toRadians(245));
+        Pose closeShotPoseOG = new Pose(82, 135.5, Math.toRadians(180));
+            //y = up
+        //x = left
+        //a = down
+
+        if(gamepad1.y){
+            farShotPose = follower.getPose();
+        }else if(gamepad1.a){
+            closeShotPose = follower.getPose();
+        }else if(gamepad1.b){
+            farShotPose = farShotPoseOG;
+            closeShotPose = closeShotPoseOG;
         }
-        if(gamepad1.a){
-            if(areValuesGreaterThan(valueOfMovementMin, axial, lateral, yaw)){
-                closeShotPose = follower.getPose();
-            }
-            else {
-                PathChain goToClosestShot = follower.pathBuilder()
-                        .addPath(new BezierLine(follower.getPose(), closeShotPose))
-                        .setLinearHeadingInterpolation(follower.getHeading(), closeShotPose.getHeading())
-                        .build();
-                follower.followPath(goToClosestShot);
-            }
-        } else if(gamepad1.b){
-            if(areValuesGreaterThan(valueOfMovementMin, axial, lateral, yaw)){
-                farShotPose = follower.getPose();
-            }
-            else {
-                PathChain goToFarShot = follower.pathBuilder()
-                        .addPath(new BezierLine(follower.getPose(), farShotPose))
-                        .setLinearHeadingInterpolation(follower.getHeading(), farShotPose.getHeading())
-                        .build();
-                follower.followPath(goToFarShot);
-            }
-        }else if(gamepad1.right_bumper){
-            PathChain goToRandomSpot = follower.pathBuilder()
-                    .addPath(new BezierLine(follower.getPose(), randomPoseToSave))
-                    .setLinearHeadingInterpolation(follower.getHeading(), randomPoseToSave.getHeading())
+        if(gamepad1.dpad_up){
+            PathChain goToClosestShot = follower.pathBuilder()
+                    .addPath(new BezierLine(follower.getPose(), closeShotPose))
+                    .setLinearHeadingInterpolation(follower.getHeading(), closeShotPose.getHeading())
                     .build();
-            follower.followPath(goToRandomSpot);
+            follower.followPath(goToClosestShot);
+            weAreGoingTo = closeShotPose;
+            usingAutoPosition = true;
+        } else if(gamepad1.dpad_down){
+            PathChain goToFarShot = follower.pathBuilder()
+                    .addPath(new BezierLine(follower.getPose(), farShotPose))
+                    .setLinearHeadingInterpolation(follower.getHeading(), farShotPose.getHeading())
+                    .build();
+            follower.followPath(goToFarShot);
+            weAreGoingTo = farShotPose;
+            usingAutoPosition = true;
+        }else if(gamepad1.dpad_left){
+            PathChain parkBot = follower.pathBuilder()
+                    .addPath(new BezierLine(follower.getPose(), ParkingPose))
+                    .setLinearHeadingInterpolation(follower.getHeading(), ParkingPose.getHeading())
+                    .build();
+            follower.followPath(parkBot);
+            weAreGoingTo = ParkingPose;
+            usingAutoPosition = true;
         }
-        if(areValuesGreaterThan(valueOfMovementMin, axial, lateral, yaw) && follower.isBusy()) {
+        if(gamepad1.left_trigger > 0){
             follower.breakFollowing();
             follower.startTeleopDrive();
-            follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
-        }else{
-            follower.setTeleOpDrive((double) axial, (double) lateral, (double) yaw, false);
+            usingAutoPosition = false;
         }
+        if(gamepad1.x) {
+            double goalErrorFirstTime = 0;
+            //AprilTagDetection id20 = camera.blocks(20)[0];  // change null to get tag from id 20 from HuskyLens "camera"
+            HuskyLens.Block[] myHuskyLensBlocks = camera.blocks();
+            int id20 = 0;
+            for (HuskyLens.Block myHuskyLensBlock_item : myHuskyLensBlocks) {
+                id20 = myHuskyLensBlock_item.id;
+                goalErrorFirstTime = myHuskyLensBlock_item.x;
+
+            }
+
+            //9 is red, 8 is blue
+            // auto align logic
+
+            if (id20 != 0) {
+                error = 600 - goalErrorFirstTime + goalX;  // subtract the "tx from a limelight" received from HuskyLens from goalX
+
+                if (Math.abs(error) < angleTolerance) {
+                    yaw = 0;
+                } else {
+                    double pTerm = error * kP;
+
+                    curTime = getRuntime();
+                    double dT = curTime - lastTime;
+                    double dTerm = ((error - lastError) / dT) * kD;
+
+                    yaw = (float) Range.clip(pTerm + dTerm, -0.4, 0.4);
+
+                    lastError = error;
+                    lastTime = curTime;
+                }
+            } else {
+                lastTime = getRuntime();
+                lastError = 0;
+            }
+        }
+
+        if(!usingAutoPosition){
+            follower.setTeleOpDrive(axial, lateral, yaw, true);
+        }
+
 
         // Combine the joystick requests for each axis-motion to determine each wheel's power.
         // Set up a variable for each drive wheel to save the power level for telemetry.

@@ -7,12 +7,14 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.paths.PathConstraints;
+import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
 
 import java.util.List;
 
@@ -20,26 +22,37 @@ import java.util.List;
 public class RedClose12Ball extends LinearOpMode {
     private Follower follower;
     private int pathState = 0;
-    private float farShotVS = 1668;
+    private float farShotVS = 1115;
+    HuskyLens camera;
     private float VELOCITY = 0;
-    private float intakePower = 0.7f;
+    private float intakePower = 0.5f;
+    ElapsedTime sweeperTime;
     private Servo intakeServo;
     private Servo intakeServo2;
     private DcMotor intakeMotor;
     private DcMotorEx shooterMotor;
-    private final Pose startPose = new Pose(121, 120, Math.toRadians(90));
-    private final Pose scorePose = new Pose(96.5, 96.5, Math.toRadians(223));
+    double kP = 0.002;
+    double error = 0;
+    double lastError = 0;
+    double goalX = -400;  // offset
+    double angleTolerance = 0.1;
+    double kD = 0.0001;
+    double curTime = 0;
+    double lastTime = 0;
+    private final Pose startPose = new Pose(118, 129.5, Math.toRadians(217));
+    private final Pose scorePose2 = new Pose(96.5, 96.5, Math.toRadians(240));
+    private final Pose scorePose = new Pose(96.5, 96.5, Math.toRadians(227)); //was 223
     private final Pose ReadyUp3 = new Pose(90, 35.5, Math.toRadians(0));
-    private final Pose Grab3 = new Pose(121, 35.5, Math.toRadians(0));
+    private final Pose Grab3 = new Pose(134, 35.5, Math.toRadians(0));
     private final Pose ReadyUp2 = new Pose(90, 60, Math.toRadians(0));
-    private final Pose Grab2 = new Pose(121, 60, Math.toRadians(0));
-    private final Pose GateOpen = new Pose(128, 75, Math.toRadians(90));
+    private final Pose Grab2 = new Pose(131, 60, Math.toRadians(0));
+    //private final Pose GateOpen = new Pose(128, 72, Math.toRadians(90));
     private final Pose ReadyUp1 = new Pose(90, 84, Math.toRadians(0));
-    private final Pose Grab1 = new Pose(121, 84, Math.toRadians(0));
-    private final Pose autoEnd = new Pose(85, 45, Math.toRadians(90));
+    private final Pose Grab1 = new Pose(130, 84, Math.toRadians(0));
+    private final Pose autoEnd = new Pose(85, 55, Math.toRadians(90));
 
     private Path scorePreload;
-    private PathChain R1Chain, G1Chain, HitGateChain, score1Chain, R2Chain, G2Chain, score2Chain, R3Chain, G3Chain, score3Chain, endChain;
+    private PathChain R1Chain, G1Chain, score1Chain, R2Chain, G2Chain, score2Chain, R3Chain, G3Chain, endChain;
 
     private void buidPaths(){
         scorePreload = new Path(new BezierLine(startPose, scorePose));
@@ -53,24 +66,20 @@ public class RedClose12Ball extends LinearOpMode {
                 .addPath(new BezierLine(ReadyUp1, Grab1))
                 .setLinearHeadingInterpolation(ReadyUp1.getHeading(), Grab1.getHeading())
                 .build();
-        HitGateChain = follower.pathBuilder()
-                .addPath(new BezierCurve(Grab1, new Pose(127.5, 79, Math.toRadians(90)), GateOpen))
-                .setLinearHeadingInterpolation(Grab1.getHeading(), GateOpen.getHeading())
-                .build();
         score1Chain = follower.pathBuilder()
-                .addPath(new BezierLine(GateOpen, scorePose))
-                .setLinearHeadingInterpolation(GateOpen.getHeading(), scorePose.getHeading())
+                .addPath(new BezierLine(Grab1, scorePose2))
+                .setLinearHeadingInterpolation(Grab1.getHeading(), scorePose2.getHeading())
                 .build();
         R2Chain = follower.pathBuilder()
-                .addPath(new BezierLine(scorePose, ReadyUp2))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), ReadyUp2.getHeading())
+                .addPath(new BezierLine(scorePose2, ReadyUp2))
+                .setLinearHeadingInterpolation(scorePose2.getHeading(), ReadyUp2.getHeading())
                 .build();
         G2Chain = follower.pathBuilder()
                 .addPath(new BezierLine(ReadyUp2, Grab2))
                 .setLinearHeadingInterpolation(ReadyUp2.getHeading(), Grab2.getHeading())
                 .build();
         score2Chain = follower.pathBuilder()
-                .addPath(new BezierLine(Grab2, scorePose))
+                .addPath(new BezierCurve(Grab2, new Pose(107, 65), scorePose))
                 .setLinearHeadingInterpolation(Grab2.getHeading(), scorePose.getHeading())
                 .build();
         R3Chain = follower.pathBuilder()
@@ -81,13 +90,13 @@ public class RedClose12Ball extends LinearOpMode {
                 .addPath(new BezierLine(ReadyUp3, Grab3))
                 .setLinearHeadingInterpolation(ReadyUp3.getHeading(), Grab3.getHeading())
                 .build();
-        score3Chain = follower.pathBuilder()
+        /*score3Chain = follower.pathBuilder()
                 .addPath(new BezierLine(Grab3, scorePose))
                 .setLinearHeadingInterpolation(Grab3.getHeading(), scorePose.getHeading())
-                .build();
+                .build();*/
         endChain = follower.pathBuilder()
-                .addPath(new BezierLine(scorePose, autoEnd))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), autoEnd.getHeading())
+                .addPath(new BezierLine(Grab3, autoEnd))
+                .setLinearHeadingInterpolation(Grab3.getHeading(), autoEnd.getHeading())
                 .build();
     }
     void setPathState(int theNewPathState){pathState = theNewPathState;}
@@ -103,9 +112,47 @@ public class RedClose12Ball extends LinearOpMode {
             intakeServo.setPosition(0.75f);
         }
     }
+    void fixPositioning() {
+        double goalErrorFirstTime = 0;
+        //AprilTagDetection id20 = camera.blocks(20)[0];  // change null to get tag from id 20 from HuskyLens "camera"
+        HuskyLens.Block[] myHuskyLensBlocks = camera.blocks();
+        int id20 = 0;
+        for (HuskyLens.Block myHuskyLensBlock_item : myHuskyLensBlocks) {
+            id20 = myHuskyLensBlock_item.id;
+            goalErrorFirstTime = myHuskyLensBlock_item.x;
+
+        }
+
+        //9 is red, 8 is blue
+        // auto align logic
+
+        float yaw = 0;
+        if (id20 != 0) {
+            error = 600 - goalErrorFirstTime + goalX;  // subtract the "tx from a limelight" received from HuskyLens from goalX
+
+            if (Math.abs(error) < angleTolerance) {
+                yaw = 0;
+            } else {
+                double pTerm = error * kP;
+
+                curTime = getRuntime();
+                double dT = curTime - lastTime;
+                double dTerm = ((error - lastError) / dT) * kD;
+
+                yaw = (float) Range.clip(pTerm + dTerm, -0.4, 0.4);
+
+                lastError = error;
+                lastTime = curTime;
+            }
+        } else {
+            lastTime = getRuntime();
+            lastError = 0;
+        }
+        follower.setTeleOpDrive(0, 0, yaw, true);
+    }
     void shotMotorManagement(){
         //JustForSlowingDown
-        shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
         if(VELOCITY == 0){
             if(shooterMotor.getVelocity() == 0){}
             else{
@@ -117,18 +164,26 @@ public class RedClose12Ball extends LinearOpMode {
             }
         }
     }
+    void sweeper(){
+        sweeperTime.reset();
+        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
+        VELOCITY = -750;
+        shooterMotor.setVelocity(VELOCITY);
+
+
+    }
     void scoreFunction(){
-        shooterMotor.setVelocityPIDFCoefficients(50.0f, 0.3549f, 96.1f, 10.0f);
+        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
         VELOCITY = farShotVS;
         shooterMotor.setVelocity(VELOCITY);
         shotMotorManagement();
-        sleep(800);
+        sleep(900);
         sendToShotRamp(3);
-        sleep(800);
+        sleep(700);
         sendToShotRamp(2);
-        sleep(800);
+        sleep(500);
         sendToShotRamp(1);
-        sleep(800);
+        sleep(1000);
         VELOCITY = 0;
 
     }
@@ -158,6 +213,14 @@ public class RedClose12Ball extends LinearOpMode {
                 break;
             case 1:
                 if(!follower.isBusy()){
+                    ElapsedTime alignmentTimer = new ElapsedTime();
+                    follower.breakFollowing();
+                    follower.startTeleopDrive();
+                    while (alignmentTimer.milliseconds() < 200){
+                        fixPositioning();
+                    }
+                    lastError = 0;
+                    lastTime = getRuntime();
                     scoreFunction();
                     ServoState(true);
                     //score
@@ -169,25 +232,28 @@ public class RedClose12Ball extends LinearOpMode {
                 if(!follower.isBusy()){
                     intakeMotor.setPower(intakePower);
                     follower.followPath(G1Chain);
-                    setPathState(34);
-                }
-                break;
-            case 34:
-                if(!follower.isBusy()){
-                    intakeMotor.setPower(0);
-                    ServoState(false);
-                    follower.followPath(HitGateChain);
                     setPathState(3);
                 }
                 break;
             case 3:
                 if(!follower.isBusy()){
+                    intakeMotor.setPower(0);
+                    ServoState(false);
+                    sweeper();
                     follower.followPath(score1Chain);
                     setPathState(4);
                 }
                 break;
             case 4:
                 if(!follower.isBusy()){
+                    ElapsedTime alignmentTimer = new ElapsedTime();
+                    follower.breakFollowing();
+                    follower.startTeleopDrive();
+                    while (alignmentTimer.milliseconds() < 200){
+                        fixPositioning();
+                    }
+                    lastError = 0;
+                    lastTime = getRuntime();
                     scoreFunction();
                     //score
                     ServoState(true);
@@ -209,6 +275,7 @@ public class RedClose12Ball extends LinearOpMode {
                 if(!follower.isBusy()){
                     //score
                     intakeMotor.setPower(0);
+                    sweeper();
                     ServoState(false);
                     follower.followPath(score2Chain);
                     setPathState(7);
@@ -216,6 +283,14 @@ public class RedClose12Ball extends LinearOpMode {
                 break;
             case 7:
                 if(!follower.isBusy()){
+                    ElapsedTime alignmentTimer = new ElapsedTime();
+                    follower.breakFollowing();
+                    follower.startTeleopDrive();
+                    while (alignmentTimer.milliseconds() < 200){
+                        fixPositioning();
+                    }
+                    lastError = 0;
+                    lastTime = getRuntime();
                     scoreFunction();
                     //score
                     ServoState(true);
@@ -236,14 +311,23 @@ public class RedClose12Ball extends LinearOpMode {
             case 9:
                 if(!follower.isBusy()){
                     //score
+                    sweeper();
                     intakeMotor.setPower(0);
                     ServoState(false);
-                    follower.followPath(score3Chain);
-                    setPathState(10);
+                    follower.followPath(endChain);
+                    setPathState(11);
                 }
                 break;
             case 10:
                 if(!follower.isBusy()){
+                    ElapsedTime alignmentTimer = new ElapsedTime();
+                    follower.breakFollowing();
+                    follower.startTeleopDrive();
+                    while (alignmentTimer.milliseconds() < 200){
+                        fixPositioning();
+                    }
+                    lastError = 0;
+                    lastTime = getRuntime();
                     scoreFunction();
                     VELOCITY = 0;
                     intakeMotor.setPower(0);
@@ -260,6 +344,9 @@ public class RedClose12Ball extends LinearOpMode {
     public void runOpMode() {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
+        camera = hardwareMap.get(HuskyLens.class, "camera");
+        camera.initialize();
+        camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
         intakeMotor = hardwareMap.get(DcMotor.class, "intakeSystem");
         intakeServo = hardwareMap.get(Servo.class, "PBTSS");
         shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
@@ -270,11 +357,13 @@ public class RedClose12Ball extends LinearOpMode {
         buidPaths();
         setPathState(0);
         ServoState(false);
+        sweeperTime = new ElapsedTime();
         waitForStart();
         if (opModeIsActive()) {
             // Pre-run
             while (opModeIsActive()) {
                 // OpMode loop
+                if(sweeperTime.milliseconds() > 700){VELOCITY = 0;}
                 autonomousPathUpdate();
                 shotMotorManagement();
                 follower.update();

@@ -13,13 +13,19 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class Constants {
+    public static PIDFCoefficients shooterConstants = new PIDFCoefficients(50, 0, 109.5, 15.1);
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(8)
             .forwardZeroPowerAcceleration(-34.98067785792871)
             .lateralZeroPowerAcceleration(-53.71272384623891)
             .translationalPIDFCoefficients(new PIDFCoefficients(0.2, 0, 0.02, 0.02))
+            .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.3, 0, 0.05, 0.015))
             .headingPIDFCoefficients(new PIDFCoefficients(1.6, 0, 0.1, 0.02))
+            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(5, 0, 0.18, 0.01))
             .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.025, 0, 0.00001, 0.6, 0.01))
+            .useSecondaryHeadingPIDF(true)
+            .useSecondaryTranslationalPIDF(true)
+            .useSecondaryDrivePIDF(false)
             .centripetalScaling(0.00002);
 
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
@@ -38,7 +44,7 @@ public class Constants {
     public static ThreeWheelConstants localizerConstants = new ThreeWheelConstants()
             .forwardTicksToInches(-0.002961043207970234)
             .strafeTicksToInches(-0.0029860905682239695)
-            .turnTicksToInches(-0.0029192616837549925)
+            .turnTicksToInches(-0.002929387801266088)
             .leftPodY(6.25)
             .rightPodY(-6.25)
             .strafePodX(-7)

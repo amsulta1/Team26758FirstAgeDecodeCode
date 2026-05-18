@@ -15,12 +15,12 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-@Autonomous(name = "RedFar12Ball")
-public class RedFar12Ball extends LinearOpMode {
+@Autonomous(name = "BlueFar9Ball")
+public class BlueFar9Ball extends LinearOpMode {
     private Follower follower;
     private int pathState = 0;
-    private float farShotVS = 1205;
     HuskyLens camera;
+    private float farShotVS = 1155;
     private float VELOCITY = 0;
     private float intakePower = 0.5f;
     private Servo intakeServo;
@@ -28,8 +28,10 @@ public class RedFar12Ball extends LinearOpMode {
     private Servo intakeServo2;
     private DcMotor intakeMotor;
     private DcMotorEx shooterMotor;
-    private final Pose startPose = new Pose(87.75, 7.5, Math.toRadians(270));
-    private final Pose scorePose = new Pose(90, 85, Math.toRadians(235));
+    private final Pose startPose = new Pose(56.25, 7.5, Math.toRadians(270));
+    private final Pose scorePose = new Pose(53, 86, Math.toRadians(299)); //originally 305
+
+    private final Pose scorePosePreload = new Pose(56, 86, Math.toRadians(315));
     double kP = 0.002;
     double error = 0;
     double lastError = 0;
@@ -38,21 +40,21 @@ public class RedFar12Ball extends LinearOpMode {
     double kD = 0.0001;
     double curTime = 0;
     double lastTime = 0;
-    private final Pose scorePosePreload = new Pose(88, 80, Math.toRadians(228));
+    //private final Pose scorePose2 = new Pose(53.5, 18, Math.toRadians(282)); //was 285
+    //private final Pose scorePose3 = new Pose(56, 18, Math.toRadians(288));
 
-
-    private final Pose ReadyUp3 = new Pose(90, 35.5, Math.toRadians(0));
-    private final Pose Grab3 = new Pose(138, 35.5, Math.toRadians(0));
-    private final Pose ReadyUp2 = new Pose(90, 60, Math.toRadians(0));
-    private final Pose Grab2 = new Pose(138, 60, Math.toRadians(0));
-    private final Pose ReadyUp1 =  new Pose(90, 84, Math.toRadians(0));
-    private final Pose Grab1 = new Pose(128, 84, Math.toRadians(0));
-    private final Pose autoEnd = new Pose(90, 55, Math.toRadians(90));
+    private final Pose ReadyUp3 = new Pose(54, 35.5, Math.toRadians(180));
+    private final Pose Grab3 = new Pose(8, 35.5, Math.toRadians(180));
+    private final Pose ReadyUp2 = new Pose(54, 58, Math.toRadians(180));
+    private final Pose Grab2 = new Pose(9, 58, Math.toRadians(180));
+    private final Pose ReadyUp1 = new Pose(54, 81, Math.toRadians(180));
+    private final Pose Grab1 = new Pose(15, 81, Math.toRadians(180));
+    private final Pose autoEnd = new Pose(59, 55, Math.toRadians(90));
 
     private Path scorePreload;
-    private PathChain R1Chain, G1Chain, score1Chain, R2Chain, G2Chain, score2Chain, R3Chain, G3Chain, endChain;
+    private PathChain R1Chain, G1Chain, score1Chain, R2Chain, G2Chain, score2Chain, G3Chain, R3Chain, endChain;
 
-    private void buidPaths(){
+    private void buidPaths() {
         scorePreload = new Path(new BezierLine(startPose, scorePosePreload));
         scorePreload.setLinearHeadingInterpolation(startPose.getHeading(), scorePosePreload.getHeading());
 
@@ -77,7 +79,7 @@ public class RedFar12Ball extends LinearOpMode {
                 .setLinearHeadingInterpolation(ReadyUp2.getHeading(), Grab2.getHeading())
                 .build();
         score2Chain = follower.pathBuilder()
-                .addPath(new BezierCurve(Grab2, new Pose(104, 60), scorePose))
+                .addPath(new BezierCurve(Grab2, new Pose(40, 60), scorePose))
                 .setLinearHeadingInterpolation(Grab2.getHeading(), scorePose.getHeading())
                 .build();
         R3Chain = follower.pathBuilder()
@@ -93,49 +95,51 @@ public class RedFar12Ball extends LinearOpMode {
                 .setLinearHeadingInterpolation(Grab3.getHeading(), autoEnd.getHeading())
                 .build();
     }
+
+    void fixPositioning() {
+            double goalErrorFirstTime = 0;
+            //AprilTagDetection id20 = camera.blocks(20)[0];  // change null to get tag from id 20 from HuskyLens "camera"
+            HuskyLens.Block[] myHuskyLensBlocks = camera.blocks();
+            int id20 = 0;
+            for (HuskyLens.Block myHuskyLensBlock_item : myHuskyLensBlocks) {
+                id20 = myHuskyLensBlock_item.id;
+                goalErrorFirstTime = myHuskyLensBlock_item.x;
+
+            }
+
+            //9 is red, 8 is blue
+            // auto align logic
+
+            float yaw = 0;
+            if (id20 != 0) {
+                error = 600 - goalErrorFirstTime + goalX;  // subtract the "tx from a limelight" received from HuskyLens from goalX
+
+                if (Math.abs(error) < angleTolerance) {
+                    yaw = 0;
+                } else {
+                    double pTerm = error * kP;
+
+                    curTime = getRuntime();
+                    double dT = curTime - lastTime;
+                    double dTerm = ((error - lastError) / dT) * kD;
+
+                    yaw = (float) Range.clip(pTerm + dTerm, -0.4, 0.4);
+
+                    lastError = error;
+                    lastTime = curTime;
+                }
+            } else {
+                lastTime = getRuntime();
+                lastError = 0;
+            }
+            follower.setTeleOpDrive(0, 0, yaw, true);
+    }
+
     void sweeper(){
         sweeperTime.reset();
         shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
         VELOCITY = -750;
         shooterMotor.setVelocity(VELOCITY);
-    }
-    void fixPositioning() {
-        double goalErrorFirstTime = 0;
-        //AprilTagDetection id20 = camera.blocks(20)[0];  // change null to get tag from id 20 from HuskyLens "camera"
-        HuskyLens.Block[] myHuskyLensBlocks = camera.blocks();
-        int id20 = 0;
-        for (HuskyLens.Block myHuskyLensBlock_item : myHuskyLensBlocks) {
-            id20 = myHuskyLensBlock_item.id;
-            goalErrorFirstTime = myHuskyLensBlock_item.x;
-
-        }
-
-        //9 is red, 8 is blue
-        // auto align logic
-
-        float yaw = 0;
-        if (id20 != 0) {
-            error = 600 - goalErrorFirstTime + goalX;  // subtract the "tx from a limelight" received from HuskyLens from goalX
-
-            if (Math.abs(error) < angleTolerance) {
-                yaw = 0;
-            } else {
-                double pTerm = error * kP;
-
-                curTime = getRuntime();
-                double dT = curTime - lastTime;
-                double dTerm = ((error - lastError) / dT) * kD;
-
-                yaw = (float) Range.clip(pTerm + dTerm, -0.4, 0.4);
-
-                lastError = error;
-                lastTime = curTime;
-            }
-        } else {
-            lastTime = getRuntime();
-            lastError = 0;
-        }
-        follower.setTeleOpDrive(0, 0, yaw, true);
     }
     void setPathState(int theNewPathState){pathState = theNewPathState;}
     private void ServoState(boolean IfFalseClosed){
@@ -175,7 +179,7 @@ public class RedFar12Ball extends LinearOpMode {
         sendToShotRamp(2);
         sleep(575);
         sendToShotRamp(1);
-        sleep(1100);
+        sleep(1050);
         VELOCITY = 0;
 
     }
@@ -285,7 +289,6 @@ public class RedFar12Ball extends LinearOpMode {
                     }
                     lastError = 0;
                     lastTime = getRuntime();
-                    farShotVS = farShotVS - 20;
                     scoreFunction();
                     //score
                     ServoState(true);
@@ -339,13 +342,13 @@ public class RedFar12Ball extends LinearOpMode {
     public void runOpMode() {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
-        camera = hardwareMap.get(HuskyLens.class, "camera");
-        camera.initialize();
-        camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
         intakeMotor = hardwareMap.get(DcMotor.class, "intakeSystem");
         intakeServo = hardwareMap.get(Servo.class, "PBTSS");
         shooterMotor = hardwareMap.get(DcMotorEx.class, "Shooter");
         intakeServo2 = hardwareMap.get(Servo.class, "PBTSS2");
+        camera = hardwareMap.get(HuskyLens.class, "camera");
+        camera.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
+        camera.initialize();
         shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);

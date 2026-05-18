@@ -15,21 +15,15 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
-@Autonomous(name = "RedFar12Ball")
-public class RedFar12Ball extends LinearOpMode {
+@Autonomous(name = "BlueClose12Ball")
+public class BlueClose12Ball extends LinearOpMode {
     private Follower follower;
     private int pathState = 0;
-    private float farShotVS = 1205;
-    HuskyLens camera;
+    private float farShotVS = 1100;
     private float VELOCITY = 0;
+    HuskyLens camera;
     private float intakePower = 0.5f;
-    private Servo intakeServo;
     ElapsedTime sweeperTime;
-    private Servo intakeServo2;
-    private DcMotor intakeMotor;
-    private DcMotorEx shooterMotor;
-    private final Pose startPose = new Pose(87.75, 7.5, Math.toRadians(270));
-    private final Pose scorePose = new Pose(90, 85, Math.toRadians(235));
     double kP = 0.002;
     double error = 0;
     double lastError = 0;
@@ -38,16 +32,24 @@ public class RedFar12Ball extends LinearOpMode {
     double kD = 0.0001;
     double curTime = 0;
     double lastTime = 0;
-    private final Pose scorePosePreload = new Pose(88, 80, Math.toRadians(228));
+    private Servo intakeServo;
+    private Servo intakeServo2;
+    private DcMotor intakeMotor;
+    private DcMotorEx shooterMotor;
+    private final Pose startPose = new Pose(26, 129.5, Math.toRadians(323));
+    private final Pose scorePose3 = new Pose(53, 97, Math.toRadians(315));
 
+    private final Pose scorePose = new Pose(48, 103, Math.toRadians(305));
+    private final Pose scorePosePreload = new Pose(48, 103, Math.toRadians(320));
 
-    private final Pose ReadyUp3 = new Pose(90, 35.5, Math.toRadians(0));
-    private final Pose Grab3 = new Pose(138, 35.5, Math.toRadians(0));
-    private final Pose ReadyUp2 = new Pose(90, 60, Math.toRadians(0));
-    private final Pose Grab2 = new Pose(138, 60, Math.toRadians(0));
-    private final Pose ReadyUp1 =  new Pose(90, 84, Math.toRadians(0));
-    private final Pose Grab1 = new Pose(128, 84, Math.toRadians(0));
-    private final Pose autoEnd = new Pose(90, 55, Math.toRadians(90));
+    private final Pose ReadyUp3 = new Pose(54, 35.5, Math.toRadians(180));
+    private final Pose Grab3 = new Pose(10, 35.5, Math.toRadians(180));
+    private final Pose ReadyUp2 = new Pose(54, 60, Math.toRadians(180));
+    private final Pose Grab2 = new Pose(14, 60, Math.toRadians(180));
+    //private final Pose GateOpen = new Pose(128, 72, Math.toRadians(90));
+    private final Pose ReadyUp1 = new Pose(54, 84, Math.toRadians(180));
+    private final Pose Grab1 = new Pose(16, 84, Math.toRadians(180));
+    private final Pose autoEnd = new Pose(59, 55, Math.toRadians(90));
 
     private Path scorePreload;
     private PathChain R1Chain, G1Chain, score1Chain, R2Chain, G2Chain, score2Chain, R3Chain, G3Chain, endChain;
@@ -77,27 +79,74 @@ public class RedFar12Ball extends LinearOpMode {
                 .setLinearHeadingInterpolation(ReadyUp2.getHeading(), Grab2.getHeading())
                 .build();
         score2Chain = follower.pathBuilder()
-                .addPath(new BezierCurve(Grab2, new Pose(104, 60), scorePose))
-                .setLinearHeadingInterpolation(Grab2.getHeading(), scorePose.getHeading())
+                .addPath(new BezierCurve(Grab2, new Pose(46, 65), scorePose3))
+                .setLinearHeadingInterpolation(Grab2.getHeading(), scorePose3.getHeading())
                 .build();
         R3Chain = follower.pathBuilder()
-                .addPath(new BezierLine(scorePose, ReadyUp3))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), ReadyUp3.getHeading())
+                .addPath(new BezierLine(scorePose3, ReadyUp3))
+                .setLinearHeadingInterpolation(scorePose3.getHeading(), ReadyUp2.getHeading())
                 .build();
         G3Chain = follower.pathBuilder()
                 .addPath(new BezierLine(ReadyUp3, Grab3))
                 .setLinearHeadingInterpolation(ReadyUp3.getHeading(), Grab3.getHeading())
                 .build();
+        /*score3Chain = follower.pathBuilder()
+                .addPath(new BezierLine(Grab3, scorePose))
+                .setLinearHeadingInterpolation(Grab3.getHeading(), scorePose.getHeading())
+                .build();*/
         endChain = follower.pathBuilder()
                 .addPath(new BezierLine(Grab3, autoEnd))
                 .setLinearHeadingInterpolation(Grab3.getHeading(), autoEnd.getHeading())
                 .build();
     }
+    void setPathState(int theNewPathState){pathState = theNewPathState;}
+    private void ServoState(boolean IfFalseClosed){
+        ElapsedTime servoTimer = new ElapsedTime();
+        if(!IfFalseClosed){
+            intakeServo2.setPosition(0.12f);
+            servoTimer.reset();
+            while(servoTimer.milliseconds() < 150){}
+            intakeServo.setPosition(0.59f);
+        }else{
+            intakeServo2.setPosition(0.01f);
+            intakeServo.setPosition(0.75f);
+        }
+    }
+    void shotMotorManagement(){
+        //JustForSlowingDown
+        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
+        if(VELOCITY == 0){
+            if(shooterMotor.getVelocity() == 0){}
+            else{
+                if(shooterMotor.getVelocity() > 200) {
+                    shooterMotor.setVelocity(-shooterMotor.getVelocity());
+                }else{
+                    shooterMotor.setVelocity(0);
+                }
+            }
+        }
+    }
     void sweeper(){
         sweeperTime.reset();
         shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
-        VELOCITY = -750;
+        VELOCITY = -1050;
         shooterMotor.setVelocity(VELOCITY);
+
+    }
+    void scoreFunction(){
+        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
+        VELOCITY = farShotVS;
+        shooterMotor.setVelocity(VELOCITY);
+        shotMotorManagement();
+        sleep(900);
+        sendToShotRamp(3);
+        sleep(700);
+        sendToShotRamp(2);
+        sleep(500);
+        sendToShotRamp(1);
+        sleep(1050);
+        VELOCITY = 0;
+
     }
     void fixPositioning() {
         double goalErrorFirstTime = 0;
@@ -137,60 +186,18 @@ public class RedFar12Ball extends LinearOpMode {
         }
         follower.setTeleOpDrive(0, 0, yaw, true);
     }
-    void setPathState(int theNewPathState){pathState = theNewPathState;}
-    private void ServoState(boolean IfFalseClosed){
-        ElapsedTime servoTimer = new ElapsedTime();
-        if(!IfFalseClosed){
-            intakeServo2.setPosition(0.12f);
-            servoTimer.reset();
-            while(servoTimer.milliseconds() < 150){}
-            intakeServo.setPosition(0.59f);
-        }else{
-            intakeServo2.setPosition(0.01f);
-            intakeServo.setPosition(0.75f);
-        }
-    }
-    void shotMotorManagement(){
-        //JustForSlowingDown
-        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
-        if(VELOCITY == 0){
-            if(shooterMotor.getVelocity() == 0){}
-            else{
-                if(shooterMotor.getVelocity() > 200) {
-                    shooterMotor.setVelocity(-shooterMotor.getVelocity());
-                }else{
-                    shooterMotor.setVelocity(0);
-                }
-            }
-        }
-    }
-    void scoreFunction(){
-        shooterMotor.setVelocityPIDFCoefficients(50.0, 0, 109.5, 15.1);
-        VELOCITY = farShotVS;
-        shooterMotor.setVelocity(VELOCITY);
-        shotMotorManagement();
-        sleep(950);
-        sendToShotRamp(3);
-        sleep(775);
-        sendToShotRamp(2);
-        sleep(575);
-        sendToShotRamp(1);
-        sleep(1100);
-        VELOCITY = 0;
-
-    }
     void sendToShotRamp(int howManyBalls){
         ElapsedTime servoTimer = new ElapsedTime();
         servoTimer.reset();
         if(howManyBalls == 2){
             //shooting with 2 balls
-            intakeServo2.setPosition(0.41f);
+            intakeServo2.setPosition(0.39f);
         }else if(howManyBalls == 1){
             //shooting the last ball
             intakeServo2.setPosition(0.52f);
             //servoTimer.reset();
             //while (servoTimer.milliseconds() < 100){}
-            intakeServo.setPosition(0.16f);
+            intakeServo.setPosition(0.15f);
 
         }else{
             intakeServo2.setPosition(0.2f);
@@ -216,7 +223,6 @@ public class RedFar12Ball extends LinearOpMode {
                     scoreFunction();
                     ServoState(true);
                     //score
-                    //farShotVS = farShotVS + 15;
                     follower.followPath(R1Chain);
                     setPathState(2);
                 }
@@ -230,9 +236,10 @@ public class RedFar12Ball extends LinearOpMode {
                 break;
             case 3:
                 if(!follower.isBusy()){
-                    sweeper();
                     intakeMotor.setPower(0);
                     ServoState(false);
+                    sweeper();
+                    sleep(500);
                     follower.followPath(score1Chain);
                     setPathState(4);
                 }
@@ -251,7 +258,6 @@ public class RedFar12Ball extends LinearOpMode {
                     //score
                     ServoState(true);
                     follower.followPath(R2Chain);
-                    //farShotVS = farShotVS + 12;
                     setPathState(5);
                 }
                 break;
@@ -269,8 +275,8 @@ public class RedFar12Ball extends LinearOpMode {
                 if(!follower.isBusy()){
                     //score
                     intakeMotor.setPower(0);
-                    ServoState(false);
                     sweeper();
+                    ServoState(false);
                     follower.followPath(score2Chain);
                     setPathState(7);
                 }
@@ -285,7 +291,6 @@ public class RedFar12Ball extends LinearOpMode {
                     }
                     lastError = 0;
                     lastTime = getRuntime();
-                    farShotVS = farShotVS - 20;
                     scoreFunction();
                     //score
                     ServoState(true);
@@ -306,8 +311,8 @@ public class RedFar12Ball extends LinearOpMode {
             case 9:
                 if(!follower.isBusy()){
                     //score
-                    //scoreFunction();
                     intakeMotor.setPower(0);
+                    sweeper();
                     ServoState(false);
                     follower.followPath(endChain);
                     setPathState(11);
@@ -351,12 +356,11 @@ public class RedFar12Ball extends LinearOpMode {
         shooterMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         buidPaths();
         setPathState(0);
-        sweeperTime = new ElapsedTime();
         ServoState(false);
+        sweeperTime = new ElapsedTime();
         waitForStart();
         if (opModeIsActive()) {
             // Pre-run
-            sweeperTime.reset();
             while (opModeIsActive()) {
                 // OpMode loop
                 if(sweeperTime.milliseconds() > 700){VELOCITY = 0;}
@@ -364,8 +368,6 @@ public class RedFar12Ball extends LinearOpMode {
                 shotMotorManagement();
                 follower.update();
                 telemetry.addData("Current Position: ", follower.getPose());
-                telemetry.addData("Shot Velocity: ", shooterMotor.getVelocity());
-                telemetry.addData("Shot Velocity Error: ", VELOCITY - shooterMotor.getVelocity());
                 telemetry.update();
             }
         }
