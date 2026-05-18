@@ -1,0 +1,4 @@
+Don't use leave autonomous everything
+
+Use plugin, adb wi-fi and ftc companion
+use pedro pathing, no road runner.
